@@ -57,8 +57,8 @@ export default function LoginScreen() {
               Email
             </Text>
             <TextInput
-              className="bg-[#12121E] text-white border border-[#1E1E35] rounded-lg text-base"
-              style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20, minHeight: 52 }}
+              className="bg-[#12121E] text-white border border-[#1E1E35] rounded-lg"
+              style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, minHeight: 52, fontSize: 16 }}
               placeholder="hero@example.com"
               placeholderTextColor="#4B5563"
               value={email}
