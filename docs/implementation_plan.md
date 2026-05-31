@@ -1,4 +1,4 @@
-# HeroFit — Gamified Fitness RPG
+# Arete — Gamified Fitness RPG
 
 > *Train like a legend. Become one.*
 

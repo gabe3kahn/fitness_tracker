@@ -29,7 +29,7 @@ export const CLASS_LABELS: Record<HeroClass, string> = {
 export const CLASS_SYMBOLS: Record<string, string> = {
   hercules:   '⚡',
   atalanta:   '🏹',
-  musashi:    '⚔',
+  yoshitsune: '⚔',
   mulan:      '🌸',
   cuchulainn: '🔥',
   boudicca:   '🛡',

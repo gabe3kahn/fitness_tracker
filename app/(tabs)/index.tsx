@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,55 +8,68 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useActiveHero, useActiveHeroDef, useRefreshHero } from '../../hooks/useHeroProgression';
-import { useDailyQuests, useWeeklyQuests, useRefreshQuestProgress, QuestWithProgress } from '../../hooks/useQuests';
+import { useDailyQuests, useWeeklyQuests, useMonthlyQuests, useBossQuests, useRefreshQuestProgress, QuestWithProgress } from '../../hooks/useQuests';
+import { useQuestAssignments } from '../../hooks/useQuestAssignments';
+import { useQuestRewards } from '../../hooks/useQuestRewards';
+import { useLevelUpDetector } from '../../hooks/useLevelUpDetector';
 import { XpBar } from '../../components/hero/XpBar';
 import { awardXp, calculateXp, HealthInput } from '../../services/xp-engine';
 import { useUserStore } from '../../stores/user-store';
-import { CLASS_COLORS, TIER_LABELS } from '../../constants/ui';
+import { CLASS_COLORS, TIER_LABELS, CLASS_SYMBOLS } from '../../constants/ui';
+import { xpProgressInLevel, effectiveStreak } from '../../constants/xp-config';
 import { useUnits } from '../../hooks/useUnits';
 import { useHealthSync } from '../../hooks/useHealthSync';
+import { isHealthKitAvailable } from '../../services/health/healthkit';
+import { useLuckCheck } from '../../hooks/useLuckCheck';
+import { LevelUpModal } from '../../components/hero/LevelUpModal';
+import { LogPuzzleModal } from '../../components/LogPuzzleModal';
+import { usePlayerStats } from '../../hooks/usePlayerStats';
+import { PLAYER_STATS } from '../../constants/stats';
 
-function QuestCard({
-  title, description, progress, target, xpReward, isCompleted, accentColor,
-}: QuestWithProgress & { accentColor: string }) {
-  const pct = Math.min(progress / target, 1);
+function QuestCard({ quest, accentColor }: { quest: QuestWithProgress; accentColor: string }) {
+  const pct = Math.min(quest.progress / quest.target, 1);
   return (
-    <View className="bg-[#12121E] border border-[#1E1E35] rounded-xl p-4 mb-3">
+    <View className="bg-[#12121E] border border-[#1E1E35] rounded-2xl p-4">
       <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-1 mr-3">
-          <Text className={`font-bold text-base ${isCompleted ? 'text-gray-400' : 'text-white'}`}>
-            {title}
-          </Text>
-          <Text className="text-gray-400 text-sm mt-0.5">{description}</Text>
+        <View style={{ flex: 1, marginRight: 12 }}>
+          <Text className="font-bold text-base text-white">{quest.title}</Text>
+          <Text className="text-gray-400 text-sm mt-0.5">{quest.description}</Text>
         </View>
-        <View style={{ borderColor: accentColor }} className="border rounded-lg px-2 py-1 items-center">
-          <Text style={{ color: accentColor }} className="text-xs font-bold">+{xpReward}</Text>
-          <Text style={{ color: accentColor }} className="text-xs">XP</Text>
+        <View style={{ backgroundColor: quest.isCompleted ? accentColor : 'transparent', borderColor: accentColor }} className="border rounded-lg px-2 py-1 items-center min-w-[44px]">
+          <Text style={{ color: quest.isCompleted ? '#09090F' : accentColor }} className="text-xs font-bold">+{quest.xpReward}</Text>
+          <Text style={{ color: quest.isCompleted ? '#09090F' : accentColor }} className="text-xs">XP</Text>
         </View>
       </View>
-      <View className="h-1.5 bg-[#1E1E35] rounded-full overflow-hidden">
-        <View
-          style={{ width: `${Math.round(pct * 100)}%`, backgroundColor: isCompleted ? '#4B5563' : accentColor }}
-          className="h-full rounded-full"
-        />
+      <View style={{ height: 5, backgroundColor: '#252540', borderRadius: 100, overflow: 'hidden', marginBottom: 6 }}>
+        <View style={{ width: `${Math.round(pct * 100)}%`, height: '100%', borderRadius: 100, backgroundColor: accentColor }} />
       </View>
-      <Text className="text-gray-400 text-xs mt-1">
-        {isCompleted ? 'Complete!' : `${progress.toLocaleString()} / ${target.toLocaleString()}`}
+      <Text className="text-xs font-medium" style={{ color: quest.isCompleted ? accentColor : '#6B7280' }}>
+        {quest.isCompleted ? '✓ Complete' : quest.progressLabel}
       </Text>
     </View>
   );
 }
 
-function StatTile({ label, value, unit }: { label: string; value: string; unit: string }) {
+function formatSleepDuration(hours: number): string {
+  const totalMinutes = Math.round(hours * 60);
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function StatTile({ icon, value, unit }: { icon: string; value: string; unit: string }) {
   return (
-    <View className="flex-1 bg-[#12121E] border border-[#1E1E35] rounded-xl p-3 items-center">
-      <Text className="text-white text-xl font-bold">{value}</Text>
-      <Text className="text-gray-400 text-xs mt-0.5">{unit}</Text>
-      <Text className="text-gray-400 text-xs uppercase tracking-wider mt-1">{label}</Text>
+    <View className="flex-1 bg-[#12121E] border border-[#1E1E35] rounded-2xl py-4 px-2 items-center">
+      <Text style={{ fontSize: 20 }} className="mb-2">{icon}</Text>
+      <Text className="text-white text-2xl font-bold">{value}</Text>
+      <Text className="text-gray-500 text-xs mt-1">{unit}</Text>
     </View>
   );
 }
@@ -89,14 +102,11 @@ function LogRunModal({
     const distUser = parseFloat(distanceStr) || 0;
     const distKm = isImperial ? distUser * 1.60934 : distUser;
     const elevUser = parseFloat(elevationStr) || 0;
-    // HealthInput always expects elevation in feet
     const elevFt = isImperial ? elevUser : Math.round(elevUser * 3.28084);
-    const hasActivity = distUser > 0 || (parseInt(durationStr) || 0) > 0;
+    const durationMin = parseInt(durationStr) || 0;
     return {
-      distanceKm: distKm || undefined,
-      activeMinutes: parseInt(durationStr) || undefined,
+      ...(distKm > 0 ? { distanceRunKm: distKm } : durationMin > 0 ? { workoutMinutes: durationMin } : {}),
       elevationFt: elevFt || undefined,
-      workoutCount: hasActivity ? 1 : undefined,
     };
   }, [distanceStr, durationStr, elevationStr, isImperial]);
 
@@ -123,6 +133,7 @@ function LogRunModal({
       userId, heroId, primaryStat, secondaryStat,
       currentTotalXp, currentLevel, streakDays, longestStreak, lastActiveDate,
       builtInput, timezone, 'run', 'manual',
+      undefined, (parseInt(durationStr) || 0) >= 20,
     );
     setLoading(false);
     setDistanceStr('');
@@ -146,7 +157,6 @@ function LogRunModal({
             </TouchableOpacity>
           </View>
 
-          {/* Distance */}
           <View className="flex-row items-center mb-3">
             <View className="w-32">
               <Text className="text-white text-sm font-medium">Distance</Text>
@@ -162,7 +172,6 @@ function LogRunModal({
             <Text className="text-gray-400 text-sm w-8">{distanceUnit}</Text>
           </View>
 
-          {/* Duration */}
           <View className="flex-row items-center mb-3">
             <View className="w-32">
               <Text className="text-white text-sm font-medium">Duration</Text>
@@ -178,7 +187,6 @@ function LogRunModal({
             <Text className="text-gray-400 text-sm w-8">min</Text>
           </View>
 
-          {/* Elevation (optional) */}
           <View className="flex-row items-center mb-4">
             <View className="w-32">
               <Text className="text-white text-sm font-medium">Elevation</Text>
@@ -195,7 +203,6 @@ function LogRunModal({
             <Text className="text-gray-400 text-sm w-8">{elevationUnit}</Text>
           </View>
 
-          {/* XP preview */}
           {previewXp > 0 && (
             <View className="items-center mb-3">
               <Text className="text-amber-400 font-semibold">
@@ -227,11 +234,30 @@ export default function DashboardScreen() {
   const refreshHero = useRefreshHero();
   const refreshQuests = useRefreshQuestProgress();
   const heroDef = useActiveHeroDef(activeHero?.hero_id);
-  const dailyQuests = useDailyQuests(activeHero?.hero_id, activeHero?.streak_days ?? 0);
-  const weeklyQuests = useWeeklyQuests(activeHero?.hero_id, activeHero?.streak_days ?? 0);
+  const { daily: dailyIds, weekly: weeklyIds, monthly: monthlyIds, isLoading: assignmentsLoading } = useQuestAssignments(activeHero?.hero_id);
+  const streakDays = activeHero?.streak_days ?? 0;
+  const heroId = activeHero?.hero_id;
+  const dailyQuests = useDailyQuests(heroId, streakDays, dailyIds);
+  const weeklyQuests = useWeeklyQuests(heroId, streakDays, weeklyIds);
+  const monthlyQuests = useMonthlyQuests(heroId, streakDays, monthlyIds);
+  const bossQuests = useBossQuests(heroId, streakDays);
+  useQuestRewards(heroId, dailyQuests, weeklyQuests, monthlyQuests, bossQuests);
+  const { pendingLevelUp, clearLevelUp, onStatChosen } = useLevelUpDetector(activeHero, heroDef);
   const [logRunVisible, setLogRunVisible] = useState(false);
+  const [logPuzzleVisible, setLogPuzzleVisible] = useState(false);
   const [lastResult, setLastResult] = useState<{ xpEarned: number; leveledUp: boolean } | null>(null);
-  const { todayStats, isSyncing } = useHealthSync();
+  const [healthPromptVisible, setHealthPromptVisible] = useState(false);
+  const [sleepOptInVisible, setSleepOptInVisible] = useState(false);
+  const { todayStats, sleepSummary, isSyncing, needsHealthSetup, sleepEnabled, connectHealth, forceSync, enableSleepTracking } = useHealthSync(activeHero?.hero_id);
+  const { luckyToday, dismissLuck } = useLuckCheck();
+  const { claimableBonuses } = usePlayerStats(activeHero?.hero_id);
+  const totalClaimable = PLAYER_STATS.reduce((s, stat) => s + (claimableBonuses[stat] ?? 0), 0);
+
+  useEffect(() => {
+    if (!needsHealthSetup) return;
+    const timer = setTimeout(() => setHealthPromptVisible(true), 3000);
+    return () => clearTimeout(timer);
+  }, [needsHealthSetup]);
 
   const colors = heroDef ? CLASS_COLORS[heroDef.heroClass] : CLASS_COLORS.warrior;
   const { distanceUnit, isImperial } = useUnits();
@@ -240,13 +266,23 @@ export default function DashboardScreen() {
     ? (isImperial ? (todayStats.distanceKm * 0.621371).toFixed(1) : todayStats.distanceKm.toFixed(1))
     : '—';
 
+  const { progress: xpInLevel, needed: xpToNext } = activeHero
+    ? xpProgressInLevel(activeHero.total_xp, activeHero.level)
+    : { progress: 0, needed: 0 };
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  })();
+  const displayName = user?.email?.split('@')[0] ?? 'Hero';
+  const syncTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
   function handleXpResult(result: any) {
     setLastResult({ xpEarned: result.totalXp, leveledUp: result.leveledUp });
     refreshHero();
     refreshQuests();
-    if (result.leveledUp) {
-      Alert.alert('⚔ Level Up!', `${heroDef?.name} reached Level ${result.newLevel}!`);
-    }
   }
 
   if (isLoading) {
@@ -276,26 +312,57 @@ export default function DashboardScreen() {
     );
   }
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
   return (
     <SafeAreaView className="flex-1 bg-[#09090F]">
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={isSyncing} onRefresh={forceSync} tintColor="#F59E0B" />}
+      >
 
         {/* Header */}
-        <View className="px-5 pt-4 pb-2 flex-row justify-between items-center">
+        <View className="px-5 pt-5 pb-3 flex-row justify-between items-start">
           <View>
-            <Text className="text-gray-400 text-xs uppercase tracking-widest">{today}</Text>
-            <Text className="text-white text-2xl font-bold mt-0.5">Dashboard</Text>
+            <Text className="text-gray-400 text-sm">{greeting}, <Text className="text-white font-semibold">{displayName}</Text></Text>
+            <Text className="text-white text-3xl font-bold tracking-tight mt-0.5">Today</Text>
           </View>
-          <TouchableOpacity
-            style={{ backgroundColor: colors.dimBg, borderColor: colors.border }}
-            className="border rounded-xl px-4 py-2"
-            onPress={() => setLogRunVisible(true)}
-          >
-            <Text style={{ color: colors.accent }} className="text-sm font-bold">+ Log Run</Text>
-          </TouchableOpacity>
+          <View className="items-end pt-1">
+            <Text className="text-emerald-400 text-xs font-semibold">● Synced</Text>
+            <Text className="text-gray-500 text-xs mt-0.5">{syncTime}</Text>
+          </View>
         </View>
+
+        {/* Lucky day modal */}
+        <Modal visible={luckyToday} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+            <View style={{ backgroundColor: '#13100A', borderWidth: 1, borderColor: '#92400E', borderRadius: 24, padding: 32, alignItems: 'center', width: '100%' }}>
+              <Text style={{ fontSize: 64, marginBottom: 16 }}>🍀</Text>
+              <Text style={{ color: '#FBBF24', fontSize: 26, fontWeight: '800', letterSpacing: 0.5, marginBottom: 8 }}>Lucky Day!</Text>
+              <Text style={{ color: '#9CA3AF', fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 28 }}>
+                The fates smile upon you today.{'\n'}+1 Luck SP has been added to your stats.
+              </Text>
+              <TouchableOpacity
+                onPress={dismissLuck}
+                style={{ backgroundColor: '#78350F', borderWidth: 1, borderColor: '#D97706', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40 }}
+              >
+                <Text style={{ color: '#FBBF24', fontWeight: '700', fontSize: 15, letterSpacing: 1 }}>CLAIM</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Level-up modal */}
+        {heroDef && pendingLevelUp && (
+          <LevelUpModal
+            visible={true}
+            onDismiss={clearLevelUp}
+            onStatChosen={onStatChosen}
+            heroName={heroDef.name}
+            levelUpInfo={pendingLevelUp}
+            skills={heroDef.skills}
+            colors={CLASS_COLORS[heroDef.heroClass]}
+          />
+        )}
 
         {/* XP result flash */}
         {lastResult && (
@@ -311,83 +378,306 @@ export default function DashboardScreen() {
         )}
 
         {/* Hero card */}
-        <View
-          style={{ borderColor: colors.border }}
-          className="mx-5 mb-4 bg-[#12121E] border-2 rounded-2xl overflow-hidden"
-        >
-          <View style={{ backgroundColor: colors.dimBg }} className="px-5 pt-5 pb-4">
-            <View className="flex-row justify-between items-start">
-              <View>
-                <Text style={{ color: colors.accent }} className="text-xs uppercase tracking-widest mb-1">
-                  Active Hero
-                </Text>
-                <Text className="text-white text-3xl font-bold">{heroDef.name}</Text>
-                <Text className="text-gray-400 text-sm">{heroDef.origin}</Text>
-              </View>
-              <View className="items-center">
-                <View style={{ borderColor: colors.border }} className="border rounded-full px-3 py-1 mb-1">
-                  <Text style={{ color: colors.accent }} className="text-xs font-bold uppercase tracking-wider">
-                    {TIER_LABELS[activeHero.tier as keyof typeof TIER_LABELS] ?? activeHero.tier}
-                  </Text>
-                </View>
-                <Text className="text-gray-400 text-xs">Level {activeHero.level}</Text>
-              </View>
-            </View>
-          </View>
-          <View className="px-5 py-4">
-            <XpBar totalXp={activeHero.total_xp} level={activeHero.level} accentColor={colors.accent} />
-            <View className="flex-row items-center mt-4">
-              <Text className="text-orange-400 text-base mr-1">🔥</Text>
-              <Text className="text-white font-bold">{activeHero.streak_days}</Text>
-              <Text className="text-gray-400 text-sm ml-1">
-                day streak · best {activeHero.longest_streak}
+        <View style={{ borderColor: colors.border, borderWidth: 2, borderRadius: 16, marginHorizontal: 20, marginBottom: 16, overflow: 'hidden' }}>
+          {totalClaimable > 0 && (
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/hero')}
+              activeOpacity={0.75}
+              style={{
+                backgroundColor: colors.accent + '2A',
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+                paddingHorizontal: 16,
+                paddingVertical: 7,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                ✨ {totalClaimable} stat bonus{totalClaimable !== 1 ? 'es' : ''} ready to claim
               </Text>
+              <Text style={{ color: colors.accent, fontSize: 12 }}>→</Text>
+            </TouchableOpacity>
+          )}
+          <LinearGradient
+            colors={[colors.dimBg, '#0D0D18']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 }}
+          >
+            {/* Streak pill */}
+            <View
+              style={{ position: 'absolute', top: 14, right: 14, zIndex: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: '#451a03', borderWidth: 1, borderColor: '#b45309', borderRadius: 100, paddingHorizontal: 12, paddingVertical: 5 }}
+            >
+              <Text style={{ fontSize: 15 }}>🔥</Text>
+              <Text style={{ color: '#fbbf24', fontSize: 13, fontWeight: '700', marginLeft: 4 }}>{effectiveStreak(activeHero.streak_days, activeHero.last_active_date)}</Text>
             </View>
-          </View>
+
+            {/* Portrait */}
+            <View
+              style={{ borderColor: colors.border }}
+              className="w-16 h-16 rounded-2xl border bg-[#1A1A2E] items-center justify-center shrink-0"
+            >
+              <Text style={{ fontSize: 30 }}>{CLASS_SYMBOLS[heroDef.id] ?? '⚔'}</Text>
+            </View>
+
+            {/* Info */}
+            <View className="flex-1">
+              <Text className="text-white text-xl font-bold">{heroDef.name}</Text>
+              <Text style={{ color: colors.accent, opacity: 0.8 }} className="text-sm font-semibold mt-0.5 mb-2.5">
+                {heroDef.heroClass.charAt(0).toUpperCase() + heroDef.heroClass.slice(1)}  ·  {TIER_LABELS[activeHero.tier as keyof typeof TIER_LABELS] ?? activeHero.tier}
+              </Text>
+              <View className="flex-row items-center mb-1.5">
+                <View style={{ backgroundColor: colors.border }} className="rounded-md px-2 py-0.5">
+                  <Text style={{ color: colors.accent }} className="text-xs font-bold">Lv {activeHero.level}</Text>
+                </View>
+                <Text className="text-white text-xs" style={{ marginLeft: 'auto' }}>
+                  {xpInLevel.toLocaleString()} / {xpToNext.toLocaleString()} XP
+                </Text>
+              </View>
+              <XpBar totalXp={activeHero.total_xp} level={activeHero.level} accentColor={colors.accent} compact />
+            </View>
+          </LinearGradient>
         </View>
 
         {/* Today's stats */}
-        <View className="px-5 mb-5">
-          <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-gray-400 text-xs uppercase tracking-widest">Today's Activity</Text>
-            {isSyncing && <Text className="text-gray-500 text-xs">Syncing…</Text>}
-          </View>
-          <View className="flex-row gap-2">
-            <StatTile
-              label="Steps"
-              value={todayStats.steps > 0 ? todayStats.steps.toLocaleString() : '—'}
-              unit="steps"
-            />
-            <StatTile
-              label="Calories"
-              value={todayStats.activeCalories > 0 ? todayStats.activeCalories.toLocaleString() : '—'}
-              unit="kcal"
-            />
-            <StatTile
-              label="Distance"
-              value={todayDistanceDisplay}
-              unit={distanceUnit}
-            />
-          </View>
-        </View>
-
-        {/* Daily quests */}
         <View className="px-5 mb-4">
-          <Text className="text-gray-400 text-xs uppercase tracking-widest mb-3">Daily Quests</Text>
-          {dailyQuests.map((q) => (
-            <QuestCard key={q.id} {...q} accentColor={colors.accent} />
-          ))}
+          {needsHealthSetup ? (
+            <TouchableOpacity
+              onPress={connectHealth}
+              style={{ borderColor: colors.border }}
+              className="bg-[#12121E] border rounded-2xl p-4 flex-row items-center justify-between"
+              activeOpacity={0.7}
+            >
+              <View className="flex-1 mr-3">
+                <Text className="text-white font-bold mb-0.5">Connect Apple Health</Text>
+                <Text className="text-gray-400 text-xs">Sync workouts and earn XP automatically</Text>
+              </View>
+              <Text style={{ color: colors.accent }} className="font-bold text-sm">Connect →</Text>
+            </TouchableOpacity>
+          ) : (
+            <View className="flex-row" style={{ gap: 10 }}>
+              <StatTile
+                icon="👟"
+                value={todayStats.steps > 0 ? todayStats.steps.toLocaleString() : '—'}
+                unit="steps"
+              />
+              <StatTile
+                icon="⚡"
+                value={todayStats.activeCalories > 0 ? todayStats.activeCalories.toLocaleString() : '—'}
+                unit="kcal"
+              />
+              <StatTile
+                icon="📍"
+                value={todayDistanceDisplay}
+                unit={distanceUnit}
+              />
+            </View>
+          )}
         </View>
 
-        {/* Weekly quests */}
-        <View className="px-5">
-          <Text className="text-gray-400 text-xs uppercase tracking-widest mb-3">Weekly Quests</Text>
-          {weeklyQuests.map((q) => (
-            <QuestCard key={q.id} {...q} accentColor={colors.accent} />
-          ))}
+        {/* Sleep card */}
+        {!needsHealthSetup && isHealthKitAvailable() && (
+          <View className="px-5 mb-5">
+            {sleepSummary ? (
+              <TouchableOpacity
+                className="rounded-2xl overflow-hidden"
+                style={{ borderWidth: 1, borderColor: '#1B6B8A' }}
+                activeOpacity={0.7}
+                onPress={() => Alert.alert(
+                  'Sleep Bonus',
+                  'Your sleep last night affects today\'s XP:\n\n' +
+                  '🌙 Well Rested (7.5+ hrs)  →  +10% XP\n' +
+                  '😐 Normal (6–7.5 hrs)  →  no change\n' +
+                  '😴 Poor (< 6 hrs)  →  −10% XP\n\n' +
+                  'Only applies to today\'s workouts and steps.',
+                )}
+              >
+                <LinearGradient
+                  colors={['#0F2D42', '#080F18']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 24, marginRight: 12 }}>
+                    {sleepSummary.label === 'Well Rested' ? '🌙' : sleepSummary.label === 'Poor' ? '😴' : '😐'}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text className="text-sky-200 text-base font-semibold">{sleepSummary.label}</Text>
+                    <Text className="text-sky-300 text-sm mt-0.5">{formatSleepDuration(sleepSummary.totalHours)} last night</Text>
+                  </View>
+                  <Text
+                    className="text-base font-bold"
+                    style={{ color: sleepSummary.multiplier > 1 ? '#34D399' : sleepSummary.multiplier < 1 ? '#F87171' : '#9CA3AF' }}
+                  >
+                    {sleepSummary.multiplier > 1 ? '+10% XP' : sleepSummary.multiplier < 1 ? '−10% XP' : 'No bonus'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : sleepEnabled ? (
+              <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#164E63' }}>
+                <LinearGradient
+                  colors={['#0D1F2D', '#080F18']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 24, marginRight: 12 }}>🌙</Text>
+                  <View>
+                    <Text className="text-sky-300 text-sm font-semibold">No sleep data for last night</Text>
+                    <Text className="text-sky-700 text-xs mt-0.5">Recorded by Apple Watch or Health app</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            ) : (
+              <TouchableOpacity
+                className="bg-[#12121E] border border-[#1E1E35] rounded-2xl px-4 py-3 flex-row items-center justify-between"
+                activeOpacity={0.7}
+                onPress={() => setSleepOptInVisible(true)}
+              >
+                <View className="flex-row items-center flex-1 mr-3">
+                  <Text style={{ fontSize: 22 }} className="mr-3">🌙</Text>
+                  <View>
+                    <Text className="text-white text-sm font-semibold">Enable Sleep Bonus</Text>
+                    <Text className="text-gray-500 text-xs mt-0.5">Let sleep quality affect your daily XP</Text>
+                  </View>
+                </View>
+                <Text style={{ color: colors.accent }} className="text-sm font-bold">Enable →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Quests */}
+        {assignmentsLoading ? (
+          <View className="px-5">
+            <View className="bg-[#12121E] border border-[#1E1E35] rounded-2xl p-4 items-center">
+              <ActivityIndicator color="#6B7280" />
+            </View>
+          </View>
+        ) : (
+          <View className="px-5 gap-6">
+            {dailyQuests.length > 0 && (
+              <View>
+                <Text className="text-white text-sm uppercase tracking-widest mb-3">Today's Quest</Text>
+                {dailyQuests.map(q => <QuestCard key={q.id} quest={q} accentColor={colors.accent} />)}
+              </View>
+            )}
+            {weeklyQuests.length > 0 && (
+              <View>
+                <Text className="text-white text-sm uppercase tracking-widest mb-3">This Week</Text>
+                {weeklyQuests.map(q => <QuestCard key={q.id} quest={q} accentColor={colors.accent} />)}
+              </View>
+            )}
+            {monthlyQuests.length > 0 && (
+              <View>
+                <Text className="text-white text-sm uppercase tracking-widest mb-3">{new Date().toLocaleDateString('en-US', { month: 'long' })}</Text>
+                {monthlyQuests.map(q => <QuestCard key={q.id} quest={q} accentColor={colors.accent} />)}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Manual log buttons */}
+        <View className="mx-5 mt-5 flex-row gap-3">
+          <TouchableOpacity
+            className="flex-1 border border-[#1E1E35] rounded-2xl py-4 items-center"
+            onPress={() => setLogRunVisible(true)}
+          >
+            <Text style={{ color: colors.accent }} className="text-sm font-bold">+ Log Run</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="flex-1 border border-[#1E1E35] rounded-2xl py-4 items-center"
+            onPress={() => setLogPuzzleVisible(true)}
+          >
+            <Text style={{ color: colors.accent }} className="text-sm font-bold">🧠 Log Puzzle</Text>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
+
+      {/* Apple Health setup prompt */}
+      <Modal visible={healthPromptVisible} transparent animationType="fade">
+        <View className="flex-1 justify-end bg-black/70">
+          <View className="bg-[#12121E] rounded-t-2xl p-6 border-t border-[#1E1E35]">
+            <Text className="text-white text-lg font-bold mb-1">Connect Apple Health</Text>
+            <Text className="text-gray-400 text-sm mb-5">
+              Arete reads your workouts and activity to award XP automatically. Your data stays on your device.
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: colors.border }}
+              className="rounded-xl py-4 items-center mb-3"
+              onPress={() => { setHealthPromptVisible(false); connectHealth(); }}
+              activeOpacity={0.8}
+            >
+              <Text className="text-white font-bold tracking-widest uppercase">Connect →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="py-3 items-center"
+              onPress={() => setHealthPromptVisible(false)}
+            >
+              <Text className="text-gray-400">Not Now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sleep opt-in modal */}
+      <Modal visible={sleepOptInVisible} transparent animationType="fade">
+        <TouchableOpacity
+          className="flex-1 justify-end bg-black/70"
+          activeOpacity={1}
+          onPress={() => setSleepOptInVisible(false)}
+        >
+          <TouchableOpacity
+            className="bg-[#12121E] rounded-t-2xl p-6 border-t border-[#1E1E35]"
+            activeOpacity={1}
+            onPress={() => {}}
+          >
+            <Text className="text-white text-lg font-bold mb-1">Sleep Bonus</Text>
+            <Text className="text-gray-400 text-sm mb-4">
+              Arete can read your sleep data from Apple Health to apply a daily XP multiplier.
+            </Text>
+            <View className="bg-[#1A1A2E] border border-[#1E1E35] rounded-xl p-4 mb-5">
+              <Text className="text-white text-sm mb-2 font-medium">How it works:</Text>
+              <Text className="text-gray-400 text-sm mb-1">🌙  Well Rested (7.5+ hrs)  →  +10% XP today</Text>
+              <Text className="text-gray-400 text-sm mb-1">😐  Normal (6–7.5 hrs)  →  no change</Text>
+              <Text className="text-gray-400 text-sm">😴  Poor (&lt; 6 hrs)  →  −10% XP today</Text>
+            </View>
+            <TouchableOpacity
+              style={{ backgroundColor: colors.border }}
+              className="rounded-xl py-4 items-center mb-3"
+              onPress={() => { setSleepOptInVisible(false); enableSleepTracking(); }}
+              activeOpacity={0.8}
+            >
+              <Text className="text-white font-bold tracking-widest uppercase">Enable Sleep Bonus</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="py-3 items-center"
+              onPress={() => setSleepOptInVisible(false)}
+            >
+              <Text className="text-gray-400">Not Now</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {activeHero && heroDef && user && (
+        <LogPuzzleModal
+          visible={logPuzzleVisible}
+          onClose={() => setLogPuzzleVisible(false)}
+          heroId={activeHero.hero_id}
+          primaryStat={heroDef.primaryStat}
+          secondaryStat={heroDef.secondaryStat}
+          currentTotalXp={activeHero.total_xp}
+          currentLevel={activeHero.level}
+          streakDays={effectiveStreak(activeHero.streak_days, activeHero.last_active_date)}
+          longestStreak={activeHero.longest_streak}
+          lastActiveDate={activeHero.last_active_date}
+          userId={user.id}
+          accentColor={colors.accent}
+          onSuccess={handleXpResult}
+        />
+      )}
 
       {activeHero && heroDef && user && (
         <LogRunModal
@@ -398,7 +688,7 @@ export default function DashboardScreen() {
           secondaryStat={heroDef.secondaryStat}
           currentTotalXp={activeHero.total_xp}
           currentLevel={activeHero.level}
-          streakDays={activeHero.streak_days}
+          streakDays={effectiveStreak(activeHero.streak_days, activeHero.last_active_date)}
           longestStreak={activeHero.longest_streak}
           lastActiveDate={activeHero.last_active_date}
           userId={user.id}

@@ -1,7 +1,8 @@
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useActiveHero, useActiveHeroDef } from '../../hooks/useHeroProgression';
-import { useDailyQuests, useWeeklyQuests, useBossQuests, QuestWithProgress } from '../../hooks/useQuests';
+import { useDailyQuests, useWeeklyQuests, useMonthlyQuests, useBossQuests, QuestWithProgress } from '../../hooks/useQuests';
+import { useQuestAssignments } from '../../hooks/useQuestAssignments';
 import { CLASS_COLORS } from '../../constants/ui';
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -13,9 +14,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   );
 }
 
-function QuestRow({
-  quest, accentColor, badgeColor,
-}: {
+function QuestRow({ quest, accentColor, badgeColor }: {
   quest: QuestWithProgress;
   accentColor: string;
   badgeColor?: string;
@@ -31,21 +30,19 @@ function QuestRow({
           </Text>
           <Text className="text-gray-400 text-sm mt-0.5">{quest.description}</Text>
         </View>
-        <View style={{ borderColor: badge }} className="border rounded-lg px-2 py-1 items-center min-w-[44px]">
-          <Text style={{ color: badge }} className="text-xs font-bold">+{quest.xpReward}</Text>
-          <Text style={{ color: badge }} className="text-xs">XP</Text>
+        <View style={{ backgroundColor: quest.isCompleted ? badge : 'transparent', borderColor: badge }} className="border rounded-lg px-2 py-1 items-center min-w-[44px]">
+          <Text style={{ color: quest.isCompleted ? '#09090F' : badge }} className="text-xs font-bold">+{quest.xpReward}</Text>
+          <Text style={{ color: quest.isCompleted ? '#09090F' : badge }} className="text-xs">XP</Text>
         </View>
       </View>
       <View className="h-1.5 bg-[#1E1E35] rounded-full overflow-hidden">
         <View
-          style={{ width: `${Math.round(pct * 100)}%`, backgroundColor: quest.isCompleted ? '#4B5563' : accentColor }}
+          style={{ width: `${Math.round(pct * 100)}%`, backgroundColor: accentColor }}
           className="h-full rounded-full"
         />
       </View>
       <Text className="text-gray-400 text-xs mt-1">
-        {quest.isCompleted
-          ? 'Complete! ✓'
-          : `${quest.progress.toLocaleString()} / ${quest.target.toLocaleString()}`}
+        {quest.isCompleted ? 'Complete! ✓' : quest.progressLabel}
       </Text>
     </View>
   );
@@ -55,11 +52,14 @@ export default function QuestsScreen() {
   const { data: activeHero, isLoading } = useActiveHero();
   const heroDef = useActiveHeroDef(activeHero?.hero_id);
   const streakDays = activeHero?.streak_days ?? 0;
-  const dailyQuests = useDailyQuests(activeHero?.hero_id, streakDays);
-  const weeklyQuests = useWeeklyQuests(activeHero?.hero_id, streakDays);
+  const heroId = activeHero?.hero_id;
   const colors = heroDef ? CLASS_COLORS[heroDef.heroClass] : CLASS_COLORS.warrior;
 
-  const bossQuests = useBossQuests(activeHero?.hero_id, streakDays);
+  const { daily: dailyIds, weekly: weeklyIds, monthly: monthlyIds, isLoading: assignmentsLoading } = useQuestAssignments(heroId);
+  const dailyQuests = useDailyQuests(heroId, streakDays, dailyIds);
+  const weeklyQuests = useWeeklyQuests(heroId, streakDays, weeklyIds);
+  const monthlyQuests = useMonthlyQuests(heroId, streakDays, monthlyIds);
+  const bossQuests = useBossQuests(heroId, streakDays);
 
   const resetTime = (() => {
     const now = new Date();
@@ -71,7 +71,9 @@ export default function QuestsScreen() {
     return `${hours}h ${mins}m`;
   })();
 
-  if (isLoading) {
+  const monthName = new Date().toLocaleDateString('en-US', { month: 'long' });
+
+  if (isLoading || assignmentsLoading) {
     return (
       <SafeAreaView className="flex-1 bg-[#09090F] items-center justify-center">
         <ActivityIndicator color="#F59E0B" />
@@ -97,6 +99,13 @@ export default function QuestsScreen() {
         <View className="px-5 mb-5">
           <SectionHeader title="Weekly Quests" subtitle="Resets Monday" />
           {weeklyQuests.map((q) => (
+            <QuestRow key={q.id} quest={q} accentColor={colors.accent} />
+          ))}
+        </View>
+
+        <View className="px-5 mb-5">
+          <SectionHeader title={`${monthName} Quests`} subtitle="Resets 1st of the month" />
+          {monthlyQuests.map((q) => (
             <QuestRow key={q.id} quest={q} accentColor={colors.accent} />
           ))}
         </View>

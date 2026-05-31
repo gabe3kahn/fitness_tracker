@@ -43,5 +43,8 @@ export function useActiveHeroDef(heroId: string | undefined) {
 export function useRefreshHero() {
   const queryClient = useQueryClient();
   const { user } = useUserStore();
-  return () => queryClient.invalidateQueries({ queryKey: ['active-hero', user?.id] });
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ['active-hero', user?.id] });
+    queryClient.invalidateQueries({ queryKey: ['puzzle-stats'] });
+  };
 }

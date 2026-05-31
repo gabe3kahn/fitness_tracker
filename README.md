@@ -1,50 +1,107 @@
-# Welcome to your Expo app 👋
+# Arete
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A dark fantasy RPG fitness tracker for iOS. Log workouts, earn XP, level up your hero, and complete quests — powered by real activity data from Apple Health.
 
-## Get started
+## Concept
 
-1. Install dependencies
+Choose a mythological hero (Hercules, Atalanta, and four others). Your hero earns XP from real workouts synced via Apple HealthKit. XP unlocks tiers (Novice → Apprentice → Champion → Legend → Mythic), levels, and hero-specific skills. Daily streaks and quests add structure to keep you consistent.
 
-   ```bash
-   npm install
-   ```
+## Tech stack
 
-2. Start the app
+- **React Native / Expo SDK 54** with file-based routing (expo-router)
+- **NativeWind** (Tailwind CSS for React Native)
+- **Supabase** (Postgres + Row Level Security) — auth, user data, XP events
+- **@tanstack/react-query** — data fetching and cache
+- **@kayzmann/expo-healthkit** — Apple HealthKit integration (workouts, steps, calories, distance)
+- **EAS Build** — cloud iOS builds (required for HealthKit native module)
 
-   ```bash
-   npx expo start
-   ```
+## Running the app
 
-In the output, you'll find options to open the app in a
+> **Expo Go will not work.** The app uses a native HealthKit module that requires a custom dev client.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### First time setup
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Build the dev client (iOS, EAS cloud build)
 
-## Learn more
+```bash
+eas build --platform ios --profile development
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Install the resulting `.ipa` on your iPhone via the EAS link, then:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npx expo start --dev-client
+```
 
-## Join the community
+Scan the QR code with the Camera app (not Expo Go).
 
-Join our community of developers creating universal apps.
+### EAS config
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **Bundle ID:** `com.gabrielkahn.herofit`
+- **EAS Project ID:** `b3478ac5-b55b-4f7c-8646-f75aa00ac320`
+- **Apple Developer Team:** Gabriel Kahn (Individual) — `SWL4K9UNJW`
+
+## Project structure
+
+```
+app/
+  (tabs)/         # Main tab screens: dashboard, quests, hero
+  hero-select.tsx # Hero selection carousel (shown on first launch)
+assets/
+  heroes/         # Hero art PNGs, organised by hero/tier
+    hercules/     # hercules_{novice,apprentice,champion,legend,mythic}.png
+    atalanta/     # atalanta_{novice,apprentice,champion,legend,mythic}.png
+constants/
+  heroes.ts       # Hero definitions, tier ranges, stat keys
+  hero-images.ts  # Static require() lookup: getHeroImage(heroId, tier)
+  xp-config.ts    # XP thresholds per level
+  ui.ts           # Class colours, tier labels, emoji fallbacks
+hooks/
+  useHealthSync.ts    # HealthKit sync on app open (5-min cooldown, 30-day backfill)
+  useHeroProgression.ts
+  useQuests.ts        # Live quest progress from xp_events aggregation
+services/
+  xp-engine.ts        # awardXp() — XP calculation, streak logic, DB writes
+  health/healthkit.ts # HealthKit wrappers: permissions, workouts, today's stats
+  supabase.ts
+stores/
+  user-store.ts
+supabase/
+  migrations/         # SQL migrations (apply in order to Supabase dashboard)
+```
+
+## Hero art
+
+6 heroes × 5 tiers = 30 images total. Generated via Claude image generation.
+
+| Hero | Art status |
+|------|-----------|
+| Hercules | Done |
+| Atalanta | Done |
+| Minamoto no Yoshitsune | Pending |
+| Mulan | Pending |
+| Cú Chulainn | Pending |
+| Boudicca | Pending |
+
+Image filename convention: `assets/heroes/{heroId}/{heroId}_{tier}.png`  
+Tier names: `novice`, `apprentice`, `champion`, `legend`, `mythic`
+
+## Data model (key tables)
+
+| Table | Purpose |
+|-------|---------|
+| `user_heroes` | Active hero per user, level, XP, streak |
+| `xp_events` | One row per XP award; source of truth for quest progress |
+| `health_connections` | Sync cursor (`last_sync_at`) per platform |
+
+## Pending features
+
+- Calendar / history heatmap view
+- Additional activity types (cycle, strength, HIIT, yoga)
+- Boss quest cumulative progress tracking
+- Hero art for remaining 4 heroes
+- Garmin / Fitbit / Strava integrations (Phase 2)

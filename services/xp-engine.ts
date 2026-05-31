@@ -1,20 +1,24 @@
 import { supabase } from './supabase';
 import {
   XP_RATES,
+  KM_PER_MI,
   HERO_CLASS_BONUS,
   streakMultiplier,
   levelForXp,
 } from '../constants/xp-config';
 import { getTierForLevel, StatKey } from '../constants/heroes';
+import { awardStatSp } from './stat-engine';
+import type { PlayerStat } from '../constants/stats';
 
 export interface HealthInput {
   steps?: number;
-  activeMinutes?: number;
-  workoutCount?: number;
-  workoutDurationMinutes?: number;
-  caloriesBurned?: number;
-  distanceKm?: number;
+  distanceRunKm?: number;
+  distanceHikeKm?: number;
+  distanceCycleKm?: number;
+  distanceSwimKm?: number;
+  workoutMinutes?: number;
   elevationFt?: number;
+  puzzle?: { xp: number; rawValue: number };
 }
 
 interface XpBreakdown {
@@ -43,42 +47,50 @@ function baseXpFromInput(input: HealthInput): XpBreakdown[] {
     const xp = Math.floor(input.steps / XP_RATES.stepsPerXp);
     breakdown.push({ source: 'steps', rawValue: input.steps, baseXp: xp, finalXp: xp });
   }
-  if (input.activeMinutes) {
-    const xp = Math.floor(input.activeMinutes * XP_RATES.activeMinutesPerXp);
-    breakdown.push({ source: 'activeMinutes', rawValue: input.activeMinutes, baseXp: xp, finalXp: xp });
+  if (input.distanceRunKm) {
+    const mi = input.distanceRunKm / KM_PER_MI;
+    const xp = Math.floor(mi * XP_RATES.distanceRunXpPerMi);
+    breakdown.push({ source: 'distanceRun', rawValue: mi, baseXp: xp, finalXp: xp });
   }
-  if (input.workoutCount) {
-    const xp = input.workoutCount * XP_RATES.workoutBase;
-    breakdown.push({ source: 'workout', rawValue: input.workoutCount, baseXp: xp, finalXp: xp });
+  if (input.distanceHikeKm) {
+    const mi = input.distanceHikeKm / KM_PER_MI;
+    const xp = Math.floor(mi * XP_RATES.distanceHikeXpPerMi);
+    breakdown.push({ source: 'distanceHike', rawValue: mi, baseXp: xp, finalXp: xp });
   }
-  if (input.caloriesBurned) {
-    const xp = Math.floor(input.caloriesBurned / XP_RATES.caloriesPerXp);
-    breakdown.push({ source: 'calories', rawValue: input.caloriesBurned, baseXp: xp, finalXp: xp });
+  if (input.distanceCycleKm) {
+    const mi = input.distanceCycleKm / KM_PER_MI;
+    const xp = Math.floor(mi * XP_RATES.distanceCycleXpPerMi);
+    breakdown.push({ source: 'distanceCycle', rawValue: mi, baseXp: xp, finalXp: xp });
   }
-  if (input.distanceKm) {
-    const xp = Math.floor(input.distanceKm * XP_RATES.distanceKmPerXp);
-    breakdown.push({ source: 'distance', rawValue: input.distanceKm, baseXp: xp, finalXp: xp });
+  if (input.distanceSwimKm) {
+    const mi = input.distanceSwimKm / KM_PER_MI;
+    const xp = Math.floor(mi * XP_RATES.distanceSwimXpPerMi);
+    breakdown.push({ source: 'distanceSwim', rawValue: mi, baseXp: xp, finalXp: xp });
+  }
+  if (input.workoutMinutes) {
+    const xp = Math.min(input.workoutMinutes * XP_RATES.workoutXpPerMin, XP_RATES.workoutMinuteCap);
+    breakdown.push({ source: 'workoutMinutes', rawValue: input.workoutMinutes, baseXp: xp, finalXp: xp });
   }
   if (input.elevationFt) {
     const xp = Math.floor((input.elevationFt / XP_RATES.elevationFtPerXp) * XP_RATES.elevationXp);
     breakdown.push({ source: 'elevation', rawValue: input.elevationFt, baseXp: xp, finalXp: xp });
+  }
+  if (input.puzzle) {
+    breakdown.push({ source: 'puzzle', rawValue: input.puzzle.rawValue, baseXp: input.puzzle.xp, finalXp: input.puzzle.xp });
   }
 
   return breakdown;
 }
 
 const STAT_TO_SOURCE: Partial<Record<StatKey, string>> = {
-  strengthWorkouts: 'workout',
-  runningDistance:  'distance',
+  strengthWorkouts: 'workoutMinutes',
+  runningDistance:  'distanceRun',
   streaks:          'streak',
-  variedActivity:   'workout',
-  hiitWorkouts:     'workout',
-  cyclingDistance:  'distance',
+  variedActivity:   'workoutMinutes',
+  hiitWorkouts:     'workoutMinutes',
+  cyclingDistance:  'distanceCycle',
   steps:            'steps',
-  activeMinutes:    'activeMinutes',
-  caloriesBurned:   'calories',
-  heartRateZones:   'activeMinutes',
-  workoutDuration:  'workout',
+  workoutDuration:  'workoutMinutes',
 };
 
 function applyClassBonus(
@@ -102,11 +114,13 @@ export function calculateXp(
   primaryStat: StatKey,
   secondaryStat: StatKey,
   streakDays: number,
+  sleepMultiplier = 1,
 ): { totalXp: number; breakdown: XpBreakdown[] } {
   let breakdown = baseXpFromInput(input);
   breakdown = applyClassBonus(breakdown, primaryStat, secondaryStat);
 
-  const multiplier = streakMultiplier(streakDays);
+  const streakMult = streakMultiplier(streakDays);
+  const multiplier = streakMult * sleepMultiplier;
   breakdown = breakdown.map((item) => ({
     ...item,
     finalXp: Math.floor(item.finalXp * multiplier),
@@ -148,27 +162,47 @@ export async function awardXp(
   activityType = 'manual',
   sourcePlatform = 'manual',
   // Pass a YYYY-MM-DD string to record an activity on a specific past date (e.g. HealthKit import).
-  // When set, streak logic is skipped — historical backfills don't rewrite streak history.
   eventDateOverride?: string,
+  // Only workouts >= 20 min count toward the streak. Steps, short sessions, etc. pass false.
+  countsForStreak = true,
+  // Stable external ID (e.g. Apple Health workout UUID) — prevents duplicate inserts on re-sync.
+  externalSessionId?: string,
+  sleepMultiplier = 1,
+  // Wordle guess count (1–6) or Connections mistake count (0+). Only set for puzzle events.
+  puzzleAccuracy?: number,
 ): Promise<XpResult> {
   const eventDate = eventDateOverride ?? getLocalDate(timezone);
-  const { totalXp: earned, breakdown } = calculateXp(input, primaryStat, secondaryStat, streakDays);
+  const yesterday = getYesterdayDate(eventDate);
 
-  // Streak: only advance if this is the first log of the day.
-  // Historical imports (eventDateOverride set) skip streak updates to avoid corrupting the streak counter.
+  // 1. Resolve streak BEFORE computing XP so all modifiers are known upfront.
   let newStreak = streakDays;
   let newLongestStreak = longestStreak;
-  if (!eventDateOverride && lastActiveDate !== eventDate) {
-    const yesterday = getYesterdayDate(eventDate);
+  if (countsForStreak && lastActiveDate !== eventDate) {
     newStreak = lastActiveDate === yesterday ? streakDays + 1 : 1;
     newLongestStreak = Math.max(longestStreak, newStreak);
   }
+
+  // Streak multiplier to apply: qualifying activities use the streak they produce;
+  // non-qualifying (steps, short workouts) use the current streak only if still active.
+  let streakForXp: number;
+  if (countsForStreak) {
+    streakForXp = newStreak;
+  } else {
+    const streakIsActive = lastActiveDate === eventDate || lastActiveDate === yesterday;
+    streakForXp = streakIsActive ? streakDays : 0;
+  }
+
+  // 2. Calculate XP with resolved streak + sleep multiplier.
+  const { totalXp: earned, breakdown } = calculateXp(input, primaryStat, secondaryStat, streakForXp, sleepMultiplier);
+  const streakMult = streakMultiplier(streakForXp);
+  console.log(`[XP] awardXp hero=${heroId} activity=${activityType} platform=${sourcePlatform} streakForXp=${streakForXp} streakMult=${streakMult.toFixed(2)} sleepMult=${sleepMultiplier.toFixed(2)} earned=${earned}`);
+  breakdown.forEach((b) => console.log(`[XP]   ${b.source} raw=${b.rawValue} base=${b.baseXp} final=${b.finalXp}`));
 
   const newTotalXp = currentTotalXp + earned;
   const newLevel = levelForXp(newTotalXp);
   const newTier = getTierForLevel(newLevel);
   const leveledUp = newLevel > currentLevel;
-  const sessionId = generateSessionId();
+  const sessionId = externalSessionId ?? generateSessionId();
 
   const events = breakdown.map((item) => ({
     user_id: userId,
@@ -182,6 +216,7 @@ export async function awardXp(
     timezone,
     activity_type: activityType,
     session_id: sessionId,
+    ...(puzzleAccuracy != null ? { puzzle_accuracy: puzzleAccuracy } : {}),
   }));
 
   if (events.length > 0) {
@@ -189,7 +224,7 @@ export async function awardXp(
   }
 
   const heroUpdate: Record<string, unknown> = { total_xp: newTotalXp, level: newLevel, tier: newTier };
-  if (!eventDateOverride) {
+  if (countsForStreak) {
     heroUpdate.streak_days = newStreak;
     heroUpdate.longest_streak = newLongestStreak;
     heroUpdate.last_active_date = eventDate;
@@ -201,6 +236,7 @@ export async function awardXp(
     .eq('user_id', userId)
     .eq('hero_id', heroId);
 
+  console.log(`[XP] result totalXp=${currentTotalXp}->${newTotalXp} level=${currentLevel}->${newLevel}${leveledUp ? ' LEVELED UP' : ''} streak=${streakDays}->${newStreak}`);
   return {
     totalXp: earned,
     breakdown,
@@ -212,4 +248,56 @@ export async function awardXp(
     newStreak,
     newLongestStreak,
   };
+}
+
+// Awards a flat XP bonus for completing a quest — no multipliers, no streak updates.
+export async function awardQuestXp(
+  userId: string,
+  heroId: string,
+  questId: string,
+  xpReward: number,
+  periodKey: string,
+  statReward?: { stat: PlayerStat; sp: number },
+): Promise<{ newTotalXp: number; newLevel: number; leveledUp: boolean }> {
+  const today = new Date().toLocaleDateString('en-CA');
+
+  const { data: hero } = await supabase
+    .from('user_heroes')
+    .select('total_xp, level')
+    .eq('user_id', userId)
+    .eq('hero_id', heroId)
+    .single();
+
+  if (!hero) throw new Error(`[Quest] Hero not found: ${heroId}`);
+
+  const newTotalXp = hero.total_xp + xpReward;
+  const newLevel = levelForXp(newTotalXp);
+  const newTier = getTierForLevel(newLevel);
+  const leveledUp = newLevel > hero.level;
+
+  await supabase.from('xp_events').insert({
+    user_id: userId,
+    hero_id: heroId,
+    source: 'quest_reward',
+    raw_value: xpReward,
+    xp_earned: xpReward,
+    bonus_multiplier: 1,
+    event_date: today,
+    source_platform: 'quest',
+    activity_type: 'quest',
+    session_id: `quest_${questId}_${today}`,
+  });
+
+  await supabase
+    .from('user_heroes')
+    .update({ total_xp: newTotalXp, level: newLevel, tier: newTier })
+    .eq('user_id', userId)
+    .eq('hero_id', heroId);
+
+  if (statReward) {
+    await awardStatSp(userId, heroId, statReward.stat, statReward.sp, 'quest', `quest_${questId}_${periodKey}`, today);
+  }
+
+  console.log(`[Quest] Awarded quest=${questId} xp=${xpReward} total=${newTotalXp}${leveledUp ? ' LEVELED UP' : ''}`);
+  return { newTotalXp, newLevel, leveledUp };
 }

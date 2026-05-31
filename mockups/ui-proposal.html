@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arete — UI Proposal</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111118;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 32px 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Phone frame ── */
+    .phone {
+      width: 393px;
+      height: 852px;
+      background: #0c0c14;
+      border-radius: 52px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 0 0 2px #2a2a3a, 0 32px 80px rgba(0,0,0,0.8);
+      flex-shrink: 0;
+    }
+
+    .notch {
+      position: absolute;
+      top: 0; left: 50%; transform: translateX(-50%);
+      width: 126px; height: 34px;
+      background: #0c0c14;
+      border-radius: 0 0 20px 20px;
+      z-index: 100;
+    }
+
+    .status-bar {
+      height: 54px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 28px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .screen {
+      position: absolute;
+      top: 54px;
+      bottom: 88px;
+      left: 0; right: 0;
+      overflow-y: auto;
+      display: none;
+      scrollbar-width: none;
+    }
+    .screen::-webkit-scrollbar { display: none; }
+    .screen.active { display: block; }
+
+    /* ── Tab bar ── */
+    .tab-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 88px;
+      background: rgba(18, 18, 28, 0.96);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid #1e1e30;
+      display: flex;
+      padding-bottom: 16px;
+    }
+    .tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .tab svg { width: 24px; height: 24px; stroke: #555; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.15s; }
+    .tab span { font-size: 10px; color: #555; font-weight: 500; transition: color 0.15s; }
+    .tab.active svg { stroke: #8b5cf6; }
+    .tab.active span { color: #8b5cf6; }
+
+    /* ── Shared ── */
+    .px { padding: 0 20px; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 10px;
+    }
+    .card {
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .row { display: flex; align-items: center; }
+    .col { display: flex; flex-direction: column; }
+    .spacer { flex: 1; }
+
+    /* XP bar */
+    .xp-track { background: #1e1e30; border-radius: 100px; height: 6px; overflow: hidden; }
+    .xp-fill { background: linear-gradient(90deg, #7c3aed, #a78bfa); height: 100%; border-radius: 100px; }
+
+    /* Tier badge */
+    .tier-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 100px;
+      text-transform: uppercase;
+    }
+    .tier-novice     { background: #1e2030; color: #8899cc; }
+    .tier-apprentice { background: #1a2820; color: #4ade80; }
+    .tier-champion   { background: #231a10; color: #fb923c; }
+    .tier-legend     { background: #1e1030; color: #a78bfa; }
+    .tier-mythic     { background: #201010; color: #f87171; }
+
+    /* ─────────────────────────────────────────
+       HOME SCREEN
+    ───────────────────────────────────────── */
+    .home-hero-card {
+      margin: 16px 20px 0;
+      background: linear-gradient(135deg, #1a1030 0%, #13131f 60%);
+      border: 1px solid #2d1f50;
+      border-radius: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+    .home-hero-glow {
+      position: absolute;
+      top: -40px; right: -40px;
+      width: 160px; height: 160px;
+      background: radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .home-hero-inner { padding: 16px; display: flex; gap: 14px; align-items: center; }
+    .hero-portrait {
+      width: 64px; height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #2d1f50, #1a1030);
+      border: 1px solid #3d2a60;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; flex-shrink: 0;
+    }
+    .hero-info { flex: 1; }
+    .hero-name { font-size: 18px; font-weight: 700; color: #fff; }
+    .hero-sub { font-size: 12px; color: #8877aa; margin-top: 1px; margin-bottom: 10px; }
+    .level-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .level-badge { font-size: 11px; font-weight: 700; color: #a78bfa; background: #1e1030; padding: 2px 7px; border-radius: 6px; }
+    .xp-label { font-size: 10px; color: #666; margin-left: auto; }
+
+    .streak-pill {
+      position: absolute; top: 14px; right: 14px;
+      background: linear-gradient(135deg, #92400e, #78350f);
+      border: 1px solid #d97706;
+      border-radius: 100px;
+      padding: 4px 10px;
+      display: flex; align-items: center; gap: 4px;
+      font-size: 12px; font-weight: 700; color: #fbbf24;
+    }
+
+    /* Today stats */
+    .today-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 12px 20px;
+    }
+    .stat-tile {
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      border-radius: 16px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-tile .value { font-size: 20px; font-weight: 700; color: #fff; }
+    .stat-tile .unit  { font-size: 10px; color: #666; margin-top: 1px; }
+    .stat-tile .icon  { font-size: 18px; margin-bottom: 4px; }
+
+    /* Sleep bonus */
+    .sleep-card {
+      margin: 0 20px 12px;
+      background: linear-gradient(135deg, #0d1f2d, #13131f);
+      border: 1px solid #164e63;
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sleep-icon { font-size: 24px; }
+    .sleep-info .title { font-size: 13px; font-weight: 600; color: #7dd3fc; }
+    .sleep-info .sub   { font-size: 11px; color: #4a7a8a; }
+    .sleep-mult { font-size: 16px; font-weight: 800; color: #34d399; margin-left: auto; }
+
+    /* Quests */
+    .quest-card {
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      border-radius: 16px;
+      padding: 13px 14px;
+      margin-bottom: 8px;
+    }
+    .quest-title { font-size: 13px; font-weight: 600; color: #ddd; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .quest-progress-track { background: #1e1e30; border-radius: 100px; height: 5px; }
+    .quest-progress-fill  { background: linear-gradient(90deg, #7c3aed, #a78bfa); height: 100%; border-radius: 100px; }
+    .quest-footer { display: flex; justify-content: space-between; margin-top: 6px; }
+    .quest-pct  { font-size: 10px; color: #888; }
+    .quest-xp   { font-size: 10px; color: #a78bfa; font-weight: 600; }
+
+    /* ─────────────────────────────────────────
+       HERO SCREEN
+    ───────────────────────────────────────── */
+    .hero-selector {
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .hero-selector::-webkit-scrollbar { display: none; }
+    .hero-thumb {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      background: #13131f;
+      border: 2px solid #1e1e30;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .hero-thumb.active { border-color: #7c3aed; }
+
+    .hero-banner {
+      margin: 0 20px 16px;
+      background: linear-gradient(160deg, #1a1030, #0d0d18);
+      border: 1px solid #2d1f50;
+      border-radius: 24px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-banner-glow {
+      position: absolute; top: -60px; right: -60px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%);
+    }
+    .hero-banner-top { display: flex; align-items: flex-start; gap: 16px; }
+    .hero-banner-portrait {
+      width: 80px; height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #2d1f50, #1e1535);
+      border: 1px solid #3d2a60;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; flex-shrink: 0;
+    }
+    .hero-banner-info .name { font-size: 22px; font-weight: 800; color: #fff; }
+    .hero-banner-info .origin { font-size: 12px; color: #7766aa; margin-top: 2px; }
+    .hero-class-tag {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: #a78bfa; background: #1e1030;
+      padding: 3px 8px; border-radius: 6px;
+    }
+    .hero-level-row { margin-top: 16px; display: flex; align-items: center; gap: 10px; }
+    .hero-level-num { font-size: 28px; font-weight: 800; color: #fff; line-height: 1; }
+    .hero-level-label { font-size: 11px; color: #666; }
+    .hero-xp-section { flex: 1; }
+    .hero-xp-label { font-size: 11px; color: #888; margin-bottom: 5px; }
+
+    /* Stats */
+    .stats-section { margin: 0 20px 16px; }
+    .stat-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .stat-name { font-size: 12px; font-weight: 600; width: 90px; flex-shrink: 0; }
+    .stat-level { font-size: 11px; font-weight: 700; width: 28px; text-align: right; flex-shrink: 0; }
+    .stat-track { flex: 1; background: #1e1e30; border-radius: 100px; height: 8px; overflow: hidden; }
+    .stat-bar-fill { height: 100%; border-radius: 100px; }
+    .str-color { color: #f87171; } .str-fill { background: linear-gradient(90deg, #ef4444, #f97316); }
+    .end-color { color: #60a5fa; } .end-fill { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+    .dex-color { color: #4ade80; } .dex-fill { background: linear-gradient(90deg, #10b981, #84cc16); }
+    .int-color { color: #c084fc; } .int-fill { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+    .lck-color { color: #fbbf24; } .lck-fill { background: linear-gradient(90deg, #f59e0b, #eab308); }
+
+    .stat-source { font-size: 9px; color: #444; margin-top: -6px; margin-bottom: 10px; padding-left: 100px; }
+
+    /* Skills */
+    .skills-section { margin: 0 20px; }
+    .skill-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid #1a1a2a;
+    }
+    .skill-row:last-child { border-bottom: none; }
+    .skill-icon { font-size: 20px; width: 36px; height: 36px; background: #1e1e30; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .skill-name { font-size: 13px; font-weight: 600; color: #ddd; }
+    .skill-desc { font-size: 11px; color: #666; margin-top: 1px; }
+    .skill-unlock { font-size: 10px; color: #7c3aed; font-weight: 600; margin-left: auto; flex-shrink: 0; }
+    .skill-active { color: #4ade80; }
+
+    /* ─────────────────────────────────────────
+       WORKOUTS SCREEN
+    ───────────────────────────────────────── */
+    .calendar-section { margin: 12px 20px; }
+    .calendar-month-label { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-day-label { font-size: 9px; color: #444; text-align: center; padding-bottom: 4px; font-weight: 600; }
+    .cal-day {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      background: #13131f;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; color: #333;
+    }
+    .cal-day.empty { background: transparent; }
+    .cal-day.rest  { background: #13131f; color: #333; }
+    .cal-day.low   { background: #1e1040; color: #7c3aed; }
+    .cal-day.med   { background: #2d1f60; color: #a78bfa; }
+    .cal-day.high  { background: #4c1d95; color: #ddd6fe; }
+    .cal-day.today { outline: 2px solid #7c3aed; }
+
+    .week-summary {
+      display: flex; gap: 8px;
+      margin: 12px 20px;
+    }
+    .week-stat {
+      flex: 1;
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      border-radius: 14px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .week-stat .val { font-size: 16px; font-weight: 700; color: #fff; }
+    .week-stat .lbl { font-size: 9px; color: #555; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .workout-entry {
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .workout-entry-top { display: flex; align-items: center; gap: 12px; }
+    .workout-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+    .icon-run  { background: #1e1040; }
+    .icon-ride { background: #0d2040; }
+    .workout-title { font-size: 14px; font-weight: 700; color: #fff; }
+    .workout-date  { font-size: 11px; color: #666; margin-top: 1px; }
+    .workout-xp-badge { margin-left: auto; background: #1e1030; border: 1px solid #3d2060; border-radius: 10px; padding: 4px 9px; font-size: 12px; font-weight: 700; color: #a78bfa; }
+
+    .workout-metrics { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #1a1a2a; }
+    .workout-metric .val { font-size: 14px; font-weight: 700; color: #ddd; }
+    .workout-metric .lbl { font-size: 10px; color: #555; }
+
+    .stat-tags { display: flex; gap: 6px; margin-top: 10px; }
+    .stat-tag { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 100px; }
+    .tag-end { background: #0d2040; color: #60a5fa; }
+    .tag-str { background: #200d0d; color: #f87171; }
+    .tag-dex { background: #0d200d; color: #4ade80; }
+
+    /* ─────────────────────────────────────────
+       PROFILE SCREEN
+    ───────────────────────────────────────── */
+    .profile-header {
+      background: linear-gradient(160deg, #1a1030, #0d0d18);
+      border-bottom: 1px solid #1e1e30;
+      padding: 20px 20px 24px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .profile-avatar {
+      width: 64px; height: 64px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; flex-shrink: 0;
+    }
+    .profile-name { font-size: 20px; font-weight: 800; color: #fff; }
+    .profile-sub  { font-size: 12px; color: #888; margin-top: 2px; }
+    .profile-since { font-size: 11px; color: #555; margin-top: 4px; }
+
+    .all-time-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 16px 20px;
+    }
+    .all-time-tile {
+      background: #13131f;
+      border: 1px solid #1e1e30;
+      border-radius: 16px;
+      padding: 14px;
+    }
+    .all-time-tile .val { font-size: 22px; font-weight: 800; color: #fff; }
+    .all-time-tile .lbl { font-size: 11px; color: #555; margin-top: 3px; }
+    .all-time-tile .icon { font-size: 20px; margin-bottom: 6px; }
+
+    .settings-row {
+      display: flex; align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid #111120;
+      cursor: pointer;
+    }
+    .settings-row .icon { font-size: 18px; width: 32px; }
+    .settings-row .label { font-size: 14px; color: #ddd; flex: 1; }
+    .settings-row .value { font-size: 12px; color: #666; }
+    .settings-row .chevron { color: #444; margin-left: 8px; font-size: 14px; }
+    .toggle { width: 44px; height: 26px; background: #4ade80; border-radius: 100px; position: relative; }
+    .toggle::after { content: ''; position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; background: #fff; border-radius: 50%; }
+    .toggle.off { background: #333; }
+    .toggle.off::after { right: auto; left: 3px; }
+
+    /* ── Legend panel (outside phone) ── */
+    .legend {
+      color: #999;
+      font-size: 13px;
+      max-width: 280px;
+      line-height: 1.7;
+    }
+    .legend h2 { color: #fff; font-size: 16px; margin-bottom: 12px; }
+    .legend h3 { color: #a78bfa; font-size: 13px; margin: 16px 0 6px; }
+    .legend ul { padding-left: 16px; }
+    .legend li { margin-bottom: 4px; }
+    .legend code { background: #1e1e30; color: #a78bfa; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
+    /* Screen header */
+    .screen-header {
+      padding: 14px 20px 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .screen-title { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+    .screen-subtitle { font-size: 13px; color: #666; }
+
+    /* Greeting */
+    .greeting { font-size: 14px; color: #888; }
+    .greeting strong { color: #fff; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     PHONE 1 — HOME + HERO
+═══════════════════════════════════════ -->
+<div class="phone">
+  <div class="notch"></div>
+  <div class="status-bar">
+    <span>9:41</span>
+    <span>●●●</span>
+  </div>
+
+  <!-- ── HOME ── -->
+  <div class="screen active" id="screen-home">
+    <div class="screen-header">
+      <div>
+        <div class="greeting">Good morning, <strong>Gabe</strong></div>
+        <div class="screen-title">Today</div>
+      </div>
+      <div style="font-size:11px; color:#555; text-align:right;">
+        <div style="color:#4ade80; font-weight:600;">● Synced</div>
+        <div style="margin-top:2px;">8:42 AM</div>
+      </div>
+    </div>
+
+    <!-- Hero card -->
+    <div class="home-hero-card">
+      <div class="home-hero-glow"></div>
+      <div class="streak-pill">🔥 7</div>
+      <div class="home-hero-inner">
+        <div class="hero-portrait">🏹</div>
+        <div class="hero-info">
+          <div class="hero-name">Atalanta</div>
+          <div class="hero-sub">Runner · Apprentice</div>
+          <div class="level-row">
+            <div class="level-badge">Lv 12</div>
+            <div class="xp-label">2,840 / 3,200 XP</div>
+          </div>
+          <div class="xp-track"><div class="xp-fill" style="width:89%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Today stats -->
+    <div class="today-stats" style="margin-top:16px;">
+      <div class="stat-tile">
+        <div class="icon">👟</div>
+        <div class="value">8,241</div>
+        <div class="unit">steps</div>
+      </div>
+      <div class="stat-tile">
+        <div class="icon">🔥</div>
+        <div class="value">412</div>
+        <div class="unit">cal</div>
+      </div>
+      <div class="stat-tile">
+        <div class="icon">📍</div>
+        <div class="value">5.2</div>
+        <div class="unit">km</div>
+      </div>
+    </div>
+
+    <!-- Sleep -->
+    <div class="sleep-card">
+      <div class="sleep-icon">🌙</div>
+      <div class="sleep-info">
+        <div class="title">Well Rested</div>
+        <div class="sub">7h 52m · Deep 1h 20m · REM 2h 10m</div>
+      </div>
+      <div class="sleep-mult">+10% XP</div>
+    </div>
+
+    <!-- Quests -->
+    <div class="px" style="margin-bottom:16px;">
+      <div class="section-label">Daily Quests</div>
+
+      <div class="quest-card">
+        <div class="quest-title">🏃 Run 5km <span style="color:#555;font-size:11px;font-weight:400;">Today</span></div>
+        <div class="quest-progress-track"><div class="quest-progress-fill" style="width:100%"></div></div>
+        <div class="quest-footer">
+          <span class="quest-pct" style="color:#4ade80;">✓ Complete</span>
+          <span class="quest-xp">+150 XP</span>
+        </div>
+      </div>
+
+      <div class="quest-card">
+        <div class="quest-title">⚡ 10,000 Steps</div>
+        <div class="quest-progress-track"><div class="quest-progress-fill" style="width:82%"></div></div>
+        <div class="quest-footer">
+          <span class="quest-pct">8,241 / 10,000</span>
+          <span class="quest-xp">+120 XP</span>
+        </div>
+      </div>
+
+      <div class="quest-card">
+        <div class="quest-title">📅 7-Day Streak</div>
+        <div class="quest-progress-track"><div class="quest-progress-fill" style="width:100%"></div></div>
+        <div class="quest-footer">
+          <span class="quest-pct" style="color:#4ade80;">✓ Complete</span>
+          <span class="quest-xp">+200 XP</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HERO ── -->
+  <div class="screen" id="screen-hero">
+    <!-- Hero selector -->
+    <div class="hero-selector">
+      <div class="hero-thumb">⚔️</div>
+      <div class="hero-thumb active">🏹</div>
+      <div class="hero-thumb">🗡️</div>
+      <div class="hero-thumb">🛡️</div>
+      <div class="hero-thumb">⚡</div>
+      <div class="hero-thumb">🌿</div>
+    </div>
+
+    <!-- Hero banner -->
+    <div class="hero-banner">
+      <div class="hero-banner-glow"></div>
+      <div class="hero-banner-top">
+        <div class="hero-banner-portrait">🏹</div>
+        <div class="hero-banner-info">
+          <div class="name">Atalanta</div>
+          <div class="origin">Greek Mythology</div>
+          <div class="hero-class-tag">Runner</div>
+        </div>
+        <div style="margin-left:auto;">
+          <span class="tier-badge tier-apprentice">Apprentice</span>
+        </div>
+      </div>
+      <div class="hero-level-row">
+        <div>
+          <div class="hero-level-num">12</div>
+          <div class="hero-level-label">Level</div>
+        </div>
+        <div class="hero-xp-section" style="margin-left:16px;">
+          <div class="hero-xp-label">2,840 / 3,200 XP to Level 13</div>
+          <div class="xp-track"><div class="xp-fill" style="width:89%"></div></div>
+          <div style="display:flex; justify-content:space-between; margin-top:5px;">
+            <span style="font-size:10px;color:#666;">🔥 7-day streak · +18% XP</span>
+            <span style="font-size:10px;color:#555;">→ Lv 25 for Champion</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-section">
+      <div class="section-label">Player Stats</div>
+
+      <div class="stat-row">
+        <span class="stat-name str-color" style="font-size:12px;font-weight:700;">💪 Strength</span>
+        <div class="stat-track"><div class="stat-bar-fill str-fill" style="width:28%"></div></div>
+        <span class="stat-level str-color">14</span>
+      </div>
+      <div class="stat-source">Strength training, HIIT</div>
+
+      <div class="stat-row">
+        <span class="stat-name end-color" style="font-size:12px;font-weight:700;">🏃 Endurance</span>
+        <div class="stat-track"><div class="stat-bar-fill end-fill" style="width:62%"></div></div>
+        <span class="stat-level end-color" style="color:#60a5fa;">31</span>
+      </div>
+      <div class="stat-source">Running, cycling, steps · Atalanta +20%</div>
+
+      <div class="stat-row">
+        <span class="stat-name dex-color" style="font-size:12px;font-weight:700;">🤸 Dexterity</span>
+        <div class="stat-track"><div class="stat-bar-fill dex-fill" style="width:19%"></div></div>
+        <span class="stat-level dex-color">10</span>
+      </div>
+      <div class="stat-source">Yoga, agility, varied activity</div>
+
+      <div class="stat-row">
+        <span class="stat-name int-color" style="font-size:12px;font-weight:700;">🧠 Intelligence</span>
+        <div class="stat-track"><div class="stat-bar-fill int-fill" style="width:8%"></div></div>
+        <span class="stat-level int-color">4</span>
+      </div>
+      <div class="stat-source">Puzzles, reading, learning</div>
+
+      <div class="stat-row">
+        <span class="stat-name lck-color" style="font-size:12px;font-weight:700;">🍀 Luck</span>
+        <div class="stat-track"><div class="stat-bar-fill lck-fill" style="width:45%"></div></div>
+        <span class="stat-level lck-color">23</span>
+      </div>
+      <div class="stat-source">Streaks, quest completion, consistency</div>
+    </div>
+
+    <!-- Skills -->
+    <div class="skills-section">
+      <div class="section-label" style="padding:0 0 0 0; margin-bottom:8px;">Hero Skills</div>
+
+      <div class="skill-row">
+        <div class="skill-icon">👟</div>
+        <div>
+          <div class="skill-name">Huntress Stride <span class="skill-active" style="font-size:10px;">● Active</span></div>
+          <div class="skill-desc">+10% XP from running distance</div>
+        </div>
+        <div class="skill-unlock">Lv 5 ✓</div>
+      </div>
+
+      <div class="skill-row">
+        <div class="skill-icon">🍎</div>
+        <div>
+          <div class="skill-name">Golden Apple <span class="skill-active" style="font-size:10px;">● Active</span></div>
+          <div class="skill-desc">Bonus XP for personal distance records</div>
+        </div>
+        <div class="skill-unlock">Lv 10 ✓</div>
+      </div>
+
+      <div class="skill-row" style="opacity:0.5;">
+        <div class="skill-icon">🐗</div>
+        <div>
+          <div class="skill-name">Boar Slayer</div>
+          <div class="skill-desc">Extra XP for runs over 10km</div>
+        </div>
+        <div class="skill-unlock" style="color:#555;">Lv 15</div>
+      </div>
+
+      <div class="skill-row" style="opacity:0.5;">
+        <div class="skill-icon">⚡</div>
+        <div>
+          <div class="skill-name">Argonaut Sprint</div>
+          <div class="skill-desc">+15% XP from steps on active days</div>
+        </div>
+        <div class="skill-unlock" style="color:#555;">Lv 20</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WORKOUTS ── -->
+  <div class="screen" id="screen-workouts">
+    <div class="screen-header">
+      <div>
+        <div class="screen-title">Workouts</div>
+        <div class="screen-subtitle">May 2026</div>
+      </div>
+    </div>
+
+    <!-- Calendar heatmap -->
+    <div class="calendar-section">
+      <div class="calendar-grid">
+        <div class="cal-day-label">S</div>
+        <div class="cal-day-label">M</div>
+        <div class="cal-day-label">T</div>
+        <div class="cal-day-label">W</div>
+        <div class="cal-day-label">T</div>
+        <div class="cal-day-label">F</div>
+        <div class="cal-day-label">S</div>
+
+        <!-- Week 1 (May starts Thursday) -->
+        <div class="cal-day empty"></div>
+        <div class="cal-day empty"></div>
+        <div class="cal-day empty"></div>
+        <div class="cal-day empty"></div>
+        <div class="cal-day rest">1</div>
+        <div class="cal-day low">2</div>
+        <div class="cal-day rest">3</div>
+
+        <!-- Week 2 -->
+        <div class="cal-day rest">4</div>
+        <div class="cal-day med">5</div>
+        <div class="cal-day high">6</div>
+        <div class="cal-day med">7</div>
+        <div class="cal-day rest">8</div>
+        <div class="cal-day high">9</div>
+        <div class="cal-day rest">10</div>
+
+        <!-- Week 3 -->
+        <div class="cal-day low">11</div>
+        <div class="cal-day high">12</div>
+        <div class="cal-day med">13</div>
+        <div class="cal-day today high">14</div>
+        <div class="cal-day rest">15</div>
+        <div class="cal-day rest">16</div>
+        <div class="cal-day rest">17</div>
+
+        <!-- Week 4 -->
+        <div class="cal-day rest">18</div>
+        <div class="cal-day rest">19</div>
+        <div class="cal-day rest">20</div>
+        <div class="cal-day rest">21</div>
+        <div class="cal-day rest">22</div>
+        <div class="cal-day rest">23</div>
+        <div class="cal-day rest">24</div>
+
+        <!-- Week 5 -->
+        <div class="cal-day rest">25</div>
+        <div class="cal-day rest">26</div>
+        <div class="cal-day rest">27</div>
+        <div class="cal-day rest">28</div>
+        <div class="cal-day rest">29</div>
+        <div class="cal-day rest">30</div>
+        <div class="cal-day rest">31</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:10px;">
+        <span style="font-size:10px;color:#444;">Less</span>
+        <div style="width:12px;height:12px;border-radius:3px;background:#13131f;"></div>
+        <div style="width:12px;height:12px;border-radius:3px;background:#1e1040;"></div>
+        <div style="width:12px;height:12px;border-radius:3px;background:#2d1f60;"></div>
+        <div style="width:12px;height:12px;border-radius:3px;background:#4c1d95;"></div>
+        <span style="font-size:10px;color:#444;">More</span>
+      </div>
+    </div>
+
+    <!-- Week summary -->
+    <div class="week-summary">
+      <div class="week-stat"><div class="val">4</div><div class="lbl">Workouts</div></div>
+      <div class="week-stat"><div class="val">22.1</div><div class="lbl">km</div></div>
+      <div class="week-stat"><div class="val">+840</div><div class="lbl">XP</div></div>
+    </div>
+
+    <!-- Workout list -->
+    <div class="px" style="margin-bottom:16px;">
+      <div class="section-label">Recent</div>
+
+      <div class="workout-entry">
+        <div class="workout-entry-top">
+          <div class="workout-icon icon-run">🏃</div>
+          <div>
+            <div class="workout-title">Morning Run</div>
+            <div class="workout-date">Today · 6:42 AM</div>
+          </div>
+          <div class="workout-xp-badge">+215 XP</div>
+        </div>
+        <div class="workout-metrics">
+          <div class="workout-metric"><div class="val">6.2 km</div><div class="lbl">Distance</div></div>
+          <div class="workout-metric"><div class="val">40 min</div><div class="lbl">Duration</div></div>
+          <div class="workout-metric"><div class="val">312</div><div class="lbl">Cal</div></div>
+          <div class="workout-metric"><div class="val">5:12</div><div class="lbl">Pace</div></div>
+        </div>
+        <div class="stat-tags">
+          <span class="stat-tag tag-end">🏃 +Endurance</span>
+          <span class="stat-tag tag-dex">🤸 +Dexterity</span>
+        </div>
+      </div>
+
+      <div class="workout-entry">
+        <div class="workout-entry-top">
+          <div class="workout-icon icon-run">🏃</div>
+          <div>
+            <div class="workout-title">Evening Run</div>
+            <div class="workout-date">May 12 · 5:18 PM</div>
+          </div>
+          <div class="workout-xp-badge">+185 XP</div>
+        </div>
+        <div class="workout-metrics">
+          <div class="workout-metric"><div class="val">5.4 km</div><div class="lbl">Distance</div></div>
+          <div class="workout-metric"><div class="val">35 min</div><div class="lbl">Duration</div></div>
+          <div class="workout-metric"><div class="val">284</div><div class="lbl">Cal</div></div>
+          <div class="workout-metric"><div class="val">5:32</div><div class="lbl">Pace</div></div>
+        </div>
+        <div class="stat-tags">
+          <span class="stat-tag tag-end">🏃 +Endurance</span>
+        </div>
+      </div>
+
+      <div class="workout-entry">
+        <div class="workout-entry-top">
+          <div class="workout-icon icon-run">🏃</div>
+          <div>
+            <div class="workout-title">Morning Run</div>
+            <div class="workout-date">May 11 · 7:01 AM</div>
+          </div>
+          <div class="workout-xp-badge">+160 XP</div>
+        </div>
+        <div class="workout-metrics">
+          <div class="workout-metric"><div class="val">4.8 km</div><div class="lbl">Distance</div></div>
+          <div class="workout-metric"><div class="val">31 min</div><div class="lbl">Duration</div></div>
+          <div class="workout-metric"><div class="val">256</div><div class="lbl">Cal</div></div>
+          <div class="workout-metric"><div class="val">5:20</div><div class="lbl">Pace</div></div>
+        </div>
+        <div class="stat-tags">
+          <span class="stat-tag tag-end">🏃 +Endurance</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PROFILE ── -->
+  <div class="screen" id="screen-profile">
+    <div class="profile-header">
+      <div class="profile-avatar">🧑</div>
+      <div>
+        <div class="profile-name">Gabe</div>
+        <div class="profile-sub">Level 12 · Apprentice</div>
+        <div class="profile-since">Member since Jan 2026</div>
+      </div>
+    </div>
+
+    <div class="all-time-grid">
+      <div class="all-time-tile">
+        <div class="icon">⭐</div>
+        <div class="val">14,280</div>
+        <div class="lbl">Total XP</div>
+      </div>
+      <div class="all-time-tile">
+        <div class="icon">🏃</div>
+        <div class="val">38</div>
+        <div class="lbl">Workouts</div>
+      </div>
+      <div class="all-time-tile">
+        <div class="icon">📍</div>
+        <div class="val">182 km</div>
+        <div class="lbl">Distance</div>
+      </div>
+      <div class="all-time-tile">
+        <div class="icon">🔥</div>
+        <div class="val">7</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+
+    <!-- Health & Settings -->
+    <div class="px" style="margin-bottom:8px;">
+      <div class="section-label">Health</div>
+    </div>
+    <div class="settings-row">
+      <div class="icon">🍎</div>
+      <div class="label">Apple Health</div>
+      <div class="value" style="color:#4ade80;">Connected</div>
+      <div class="chevron">›</div>
+    </div>
+    <div class="settings-row">
+      <div class="icon">🌙</div>
+      <div class="label">Sleep Tracking</div>
+      <div class="toggle"></div>
+    </div>
+    <div class="settings-row" style="border-bottom:none;">
+      <div class="icon">⏱️</div>
+      <div class="label">Last Synced</div>
+      <div class="value">8:42 AM</div>
+    </div>
+
+    <div class="px" style="margin:16px 0 8px;">
+      <div class="section-label">Account</div>
+    </div>
+    <div class="settings-row">
+      <div class="icon">👤</div>
+      <div class="label">gabe2kahn@gmail.com</div>
+      <div class="chevron">›</div>
+    </div>
+    <div class="settings-row" style="border-bottom:none;">
+      <div class="icon">🚪</div>
+      <div class="label" style="color:#f87171;">Sign Out</div>
+    </div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <div class="tab active" id="tab-home" onclick="switchTab('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Home</span>
+    </div>
+    <div class="tab" id="tab-hero" onclick="switchTab('hero')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/><path d="M12 4v0m0 8v8"/></svg>
+      <span>Hero</span>
+    </div>
+    <div class="tab" id="tab-workouts" onclick="switchTab('workouts')">
+      <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      <span>Workouts</span>
+    </div>
+    <div class="tab" id="tab-profile" onclick="switchTab('profile')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span>Profile</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     NOTES PANEL
+═══════════════════════════════════════ -->
+<div class="legend">
+  <h2>Arete UI Proposal</h2>
+  <p>Interactive mockup — click the tab bar to switch screens.</p>
+
+  <h3>Navigation</h3>
+  <ul>
+    <li><strong>Home</strong> — daily driver: hero status, today's stats, sleep bonus, quests</li>
+    <li><strong>Hero</strong> — character sheet: hero selector, level/XP, stats, skills</li>
+    <li><strong>Workouts</strong> — activity history: calendar heatmap + workout log</li>
+    <li><strong>Profile</strong> — all-time stats, health connection, settings</li>
+  </ul>
+
+  <h3>Stats System</h3>
+  <ul>
+    <li><code style="color:#f87171">STR</code> Strength → heavy workouts, HIIT</li>
+    <li><code style="color:#60a5fa">END</code> Endurance → running, cycling, steps</li>
+    <li><code style="color:#4ade80">DEX</code> Dexterity → yoga, varied, agility</li>
+    <li><code style="color:#c084fc">INT</code> Intelligence → puzzles, reading</li>
+    <li><code style="color:#fbbf24">LCK</code> Luck → streak consistency</li>
+  </ul>
+  <p style="margin-top:8px;">Stats are <strong>account-level</strong> (not per-hero). Hero class provides a growth bonus to related stats (e.g. Atalanta +20% Endurance gains).</p>
+
+  <h3>Key Changes vs Current</h3>
+  <ul>
+    <li>Quests moved into Home (no separate tab)</li>
+    <li>Workouts tab replaces the old duplicate hero/quest overlap</li>
+    <li>Calendar heatmap is now a first-class feature</li>
+    <li>Stats panel is new — surfaces the RPG depth</li>
+    <li>Streak multiplier visible on hero screen</li>
+  </ul>
+
+  <h3>Open Questions</h3>
+  <ul>
+    <li>Stats computed live from <code>xp_events</code> or stored separately?</li>
+    <li>Do stats unlock anything (passive bonuses, visual changes)?</li>
+    <li>Should the workout detail view show per-stat XP breakdown?</li>
+  </ul>
+</div>
+
+<script>
+  function switchTab(tab) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('screen-' + tab).classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+  }
+</script>
+
+</body>
+</html>

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   FlatList,
   TouchableOpacity,
   Dimensions,
@@ -13,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { HEROES, HeroDef, HeroClass, StatKey } from '../constants/heroes';
 import { CLASS_COLORS, CLASS_LABELS, CLASS_SYMBOLS } from '../constants/ui';
+import { getHeroImage } from '../constants/hero-images';
 import { supabase } from '../services/supabase';
 import { useUserStore } from '../stores/user-store';
 
@@ -29,9 +31,6 @@ const STAT_LABELS: Record<StatKey, string> = {
   hiitWorkouts:     'HIIT Workouts',
   cyclingDistance:  'Cycling Distance',
   steps:            'Daily Steps',
-  activeMinutes:    'Active Minutes',
-  caloriesBurned:   'Calories Burned',
-  heartRateZones:   'Heart Rate Zones',
   workoutDuration:  'Workout Duration',
 };
 
@@ -42,8 +41,18 @@ function HeroCard({ hero, colors }: { hero: HeroDef; colors: typeof CLASS_COLORS
       className="rounded-2xl bg-[#12121E] border-2 overflow-hidden"
     >
       {/* Art area */}
-      <View style={{ backgroundColor: colors.dimBg }} className="h-36 items-center justify-center">
-        <Text style={{ fontSize: 64 }}>{CLASS_SYMBOLS[hero.id] ?? '⚔'}</Text>
+      <View style={{ backgroundColor: colors.dimBg, overflow: 'hidden' }} className="h-36">
+        {getHeroImage(hero.id, 'novice') ? (
+          <Image
+            source={getHeroImage(hero.id, 'novice')!}
+            style={{ width: '100%', height: 550 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 64 }}>{CLASS_SYMBOLS[hero.id] ?? '⚔'}</Text>
+          </View>
+        )}
         <View
           style={{ borderColor: colors.border }}
           className="absolute bottom-3 left-4 px-3 py-1 rounded-full border"
@@ -126,11 +135,18 @@ export default function HeroSelectScreen() {
     <SafeAreaView className="flex-1 bg-[#09090F]">
 
       {/* Header */}
-      <View className="px-6 pt-4 pb-3">
-        <Text className="text-white text-2xl font-bold">Choose Your Hero</Text>
-        <Text className="text-gray-400 text-sm mt-0.5">
-          Swipe to browse · your class shapes how you earn XP
+      <View className="px-6 pt-4 pb-2">
+        <Text style={{ color: colors.accent }} className="text-xs font-bold tracking-widest uppercase mb-3">
+          Arete
         </Text>
+        <Text className="text-white text-3xl font-black mb-2" style={{ letterSpacing: -0.5, lineHeight: 36 }}>
+          Your legend{'\n'}begins here.
+        </Text>
+        <Text className="text-gray-400 text-sm mb-4" style={{ lineHeight: 20 }}>
+          Earn XP for every workout, quest, and puzzle you complete. Your hero's class shapes how your stats grow.
+        </Text>
+        <Text className="text-white text-base font-bold">Choose Your Hero</Text>
+        <Text className="text-gray-500 text-xs mt-0.5">Swipe to browse · class shapes your XP bonuses</Text>
       </View>
 
       {/* Carousel — fixed height so button is always visible */}

@@ -1,19 +1,20 @@
 {
   "expo": {
-    "name": "fitness_tracker",
-    "slug": "fitness_tracker",
+    "name": "Arete",
+    "slug": "arete",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fitnesstracker",
+    "scheme": "arete",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.herofit.app",
+      "bundleIdentifier": "com.gabrielkahn.arete",
       "infoPlist": {
-        "NSHealthShareUsageDescription": "HeroFit reads your workouts and activity data to award XP for your fitness.",
-        "NSHealthUpdateUsageDescription": "HeroFit reads your workouts and activity data to award XP for your fitness."
+        "NSHealthShareUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness.",
+        "NSHealthUpdateUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
         "com.apple.developer.healthkit": true
@@ -35,7 +36,10 @@
     },
     "plugins": [
       "expo-router",
-      "@kayzmann/expo-healthkit",
+      ["@kingstinct/react-native-healthkit", {
+        "NSHealthShareUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness.",
+        "NSHealthUpdateUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness."
+      }],
       [
         "expo-splash-screen",
         {

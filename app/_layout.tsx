@@ -34,7 +34,8 @@ function AuthGuard() {
   useEffect(() => {
     if (!isReady) return;
     const inAuthGroup = segments[0] === '(auth)';
-    if (!user && !inAuthGroup) {
+    const isDevScreen = segments[0] === 'game-test';
+    if (!user && !inAuthGroup && !isDevScreen) {
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
       router.replace('/(tabs)');
@@ -55,6 +56,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="hero-select" options={{ headerShown: false }} />
+          <Stack.Screen name="game-test" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
         <StatusBar style="light" />

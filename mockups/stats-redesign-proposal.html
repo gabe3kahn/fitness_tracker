@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arete — Stats Redesign Proposal</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #09090F;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 24px 16px 60px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  h2 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #4B5563;
+    margin: 32px 0 12px;
+  }
+
+  .section-note {
+    font-size: 12px;
+    color: #4B5563;
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: #12121E;
+    border: 1px solid #1E1E35;
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #9CA3AF;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .cap-badge {
+    font-size: 10px;
+    color: #4B5563;
+    font-weight: 600;
+    background: #1A1A2E;
+    padding: 3px 8px;
+    border-radius: 100px;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  /* ── Stat rows ── */
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stat-row:last-child { margin-bottom: 0; }
+
+  .stat-icon { font-size: 18px; width: 24px; flex-shrink: 0; text-align: center; }
+
+  .stat-info { flex: 1; min-width: 0; }
+
+  .stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+  }
+
+  .stat-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .stat-level {
+    font-size: 13px;
+    font-weight: 700;
+    color: #6B7280;
+  }
+
+  .bar-track {
+    height: 6px;
+    background: #1A1A2E;
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.4s ease;
+  }
+
+  /* Claim pill */
+  .claim-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 100px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.15s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .claim-btn:hover { transform: scale(1.05); box-shadow: 0 3px 12px rgba(0,0,0,0.4); }
+  .claim-btn:active { transform: scale(0.97); opacity: 0.8; }
+
+  /* Colors */
+  .strength  { color: #F87171; }
+  .endurance { color: #60A5FA; }
+  .dexterity { color: #4ADE80; }
+  .intel     { color: #C084FC; }
+  .luck      { color: #FBBF24; }
+
+  .bar-strength  { background: linear-gradient(90deg, #F87171, #FB923C); }
+  .bar-endurance { background: linear-gradient(90deg, #60A5FA, #38BDF8); }
+  .bar-dexterity { background: linear-gradient(90deg, #4ADE80, #A3E635); }
+  .bar-intel     { background: linear-gradient(90deg, #C084FC, #E879F9); }
+  .bar-luck      { background: linear-gradient(90deg, #FBBF24, #FDE68A); }
+
+  .btn-strength  { background: rgba(248,113,113,0.2); color: #F87171; border: 1px solid rgba(248,113,113,0.4); }
+  .btn-endurance { background: rgba(96,165,250,0.2);  color: #60A5FA; border: 1px solid rgba(96,165,250,0.4); }
+  .btn-dexterity { background: rgba(74,222,128,0.2);  color: #4ADE80; border: 1px solid rgba(74,222,128,0.4); }
+  .btn-intel     { background: rgba(192,132,252,0.2); color: #C084FC; border: 1px solid rgba(192,132,252,0.4); }
+  .btn-luck      { background: rgba(251,191,36,0.2);  color: #FBBF24; border: 1px solid rgba(251,191,36,0.4); }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: #1E1E35;
+    margin: 16px 0;
+  }
+
+  /* ── Cap explanation ── */
+  .cap-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: #6B7280;
+    margin-bottom: 8px;
+  }
+  .cap-arrow {
+    color: #4B5563;
+    font-size: 16px;
+  }
+  .cap-val {
+    background: #1A1A2E;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    color: #9CA3AF;
+    font-size: 11px;
+  }
+
+  /* ── Puzzle accuracy table ── */
+  .puzzle-section {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 0;
+  }
+  .puzzle-col {
+    flex: 1;
+    background: #12121E;
+    border: 1px solid #1E1E35;
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .puzzle-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #9CA3AF;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .accuracy-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .accuracy-row:last-child { margin-bottom: 0; }
+  .accuracy-label { color: #6B7280; }
+  .accuracy-sp {
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .sp-bar {
+    height: 3px;
+    background: #1A1A2E;
+    border-radius: 100px;
+    margin: 3px 0 6px;
+  }
+  .sp-bar-fill {
+    height: 100%;
+    border-radius: 100px;
+    background: linear-gradient(90deg, #C084FC, #E879F9);
+  }
+
+  /* ── State toggle ── */
+  .state-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    background: #12121E;
+    border: 1px solid #1E1E35;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .state-tab {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: #6B7280;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .state-tab.active {
+    background: #1E1E35;
+    color: #fff;
+  }
+
+  /* ── State panels ── */
+  .state-panel { display: none; }
+  .state-panel.active { display: block; }
+
+  /* ── Annotation ── */
+  .annotation {
+    font-size: 11px;
+    color: #4B5563;
+    margin-top: 8px;
+    line-height: 1.5;
+    padding-left: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div style="margin-bottom: 8px;">
+  <div style="font-size: 11px; color: #C084FC; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">Arete · Stats Redesign</div>
+  <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px;">Proposal</div>
+  <div style="font-size: 13px; color: #6B7280; line-height: 1.5;">Integer levels only · Relative bars · Claimable bonuses · Accuracy-based intelligence</div>
+</div>
+
+
+<!-- ─── SECTION 1: STAT CARD STATES ─────────────────────────────────────────── -->
+<h2>Stats Card — States</h2>
+
+<div class="state-tabs">
+  <button class="state-tab active" onclick="showState('idle')">No Claims</button>
+  <button class="state-tab" onclick="showState('claims')">With Claims</button>
+  <button class="state-tab" onclick="showState('cap')">Near Cap</button>
+</div>
+
+<!-- State: Idle -->
+<div class="state-panel active" id="state-idle">
+  <div class="card">
+    <div class="card-title">
+      Attributes
+      <span class="cap-badge">Cap: 100</span>
+    </div>
+
+    <!-- Strength -->
+    <div class="stat-row">
+      <div class="stat-icon">⚔️</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name strength">Strength</span>
+          <span class="stat-level">Lv. 54</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-strength" style="width: 54%"></div></div>
+      </div>
+    </div>
+
+    <!-- Endurance -->
+    <div class="stat-row">
+      <div class="stat-icon">🏃</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name endurance">Endurance</span>
+          <span class="stat-level">Lv. 72</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-endurance" style="width: 72%"></div></div>
+      </div>
+    </div>
+
+    <!-- Dexterity -->
+    <div class="stat-row">
+      <div class="stat-icon">⚡</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name dexterity">Dexterity</span>
+          <span class="stat-level">Lv. 18</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-dexterity" style="width: 18%"></div></div>
+      </div>
+    </div>
+
+    <!-- Intelligence -->
+    <div class="stat-row">
+      <div class="stat-icon">🧠</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name intel">Intelligence</span>
+          <span class="stat-level">Lv. 61</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-intel" style="width: 61%"></div></div>
+      </div>
+    </div>
+
+    <!-- Luck -->
+    <div class="stat-row">
+      <div class="stat-icon">🍀</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name luck">Luck</span>
+          <span class="stat-level">Lv. 30</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-luck" style="width: 30%"></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="annotation">Bars show each stat level relative to a shared cap (currently 100). No progress bar within a level — just the integer level and where you stand relative to your other stats.</p>
+</div>
+
+<!-- State: With Claims -->
+<div class="state-panel" id="state-claims">
+  <div class="card">
+    <div class="card-title">
+      Attributes
+      <span class="cap-badge">Cap: 100</span>
+    </div>
+
+    <!-- Strength -->
+    <div class="stat-row">
+      <div class="stat-icon">⚔️</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name strength">Strength</span>
+          <span class="stat-level">Lv. 54</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-strength" style="width: 54%"></div></div>
+      </div>
+    </div>
+
+    <!-- Endurance — 2 claims ready -->
+    <div class="stat-row">
+      <div class="stat-icon">🏃</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name endurance">Endurance</span>
+          <span class="stat-level">Lv. 72</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-endurance" style="width: 72%"></div></div>
+      </div>
+      <button class="claim-btn btn-endurance">⬆ Claim ×2</button>
+    </div>
+
+    <!-- Dexterity -->
+    <div class="stat-row">
+      <div class="stat-icon">⚡</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name dexterity">Dexterity</span>
+          <span class="stat-level">Lv. 18</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-dexterity" style="width: 18%"></div></div>
+      </div>
+    </div>
+
+    <!-- Intelligence — 1 claim ready -->
+    <div class="stat-row">
+      <div class="stat-icon">🧠</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name intel">Intelligence</span>
+          <span class="stat-level">Lv. 61</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-intel" style="width: 61%"></div></div>
+      </div>
+      <button class="claim-btn btn-intel">⬆ Claim ×1</button>
+    </div>
+
+    <!-- Luck -->
+    <div class="stat-row">
+      <div class="stat-icon">🍀</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name luck">Luck</span>
+          <span class="stat-level">Lv. 30</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-luck" style="width: 30%"></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="annotation">Claim buttons appear per-stat when bonus SP is available. The number shows how many unclaimed bonuses have stacked up (e.g. a long workout or multiple missed claims). Tapping claims all at once.</p>
+</div>
+
+<!-- State: Near Cap -->
+<div class="state-panel" id="state-cap">
+  <div class="card">
+    <div class="card-title">
+      Attributes
+      <span class="cap-badge">Cap: 200</span>
+    </div>
+
+    <!-- Strength -->
+    <div class="stat-row">
+      <div class="stat-icon">⚔️</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name strength">Strength</span>
+          <span class="stat-level">Lv. 120</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-strength" style="width: 60%"></div></div>
+      </div>
+    </div>
+
+    <!-- Endurance — approaching 180 (next bump threshold) -->
+    <div class="stat-row">
+      <div class="stat-icon">🏃</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name endurance">Endurance</span>
+          <span class="stat-level">Lv. 176</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-endurance" style="width: 88%"></div></div>
+      </div>
+    </div>
+
+    <!-- Dexterity -->
+    <div class="stat-row">
+      <div class="stat-icon">⚡</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name dexterity">Dexterity</span>
+          <span class="stat-level">Lv. 28</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-dexterity" style="width: 14%"></div></div>
+      </div>
+    </div>
+
+    <!-- Intelligence -->
+    <div class="stat-row">
+      <div class="stat-icon">🧠</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name intel">Intelligence</span>
+          <span class="stat-level">Lv. 96</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-intel" style="width: 48%"></div></div>
+      </div>
+    </div>
+
+    <!-- Luck -->
+    <div class="stat-row">
+      <div class="stat-icon">🍀</div>
+      <div class="stat-info">
+        <div class="stat-header">
+          <span class="stat-name luck">Luck</span>
+          <span class="stat-level">Lv. 44</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill bar-luck" style="width: 22%"></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="annotation">Cap bumped from 100→200 when Endurance hit level 90. Now Endurance is approaching 176 — close to the next threshold at 180 which will bump the cap to 300. All bars rescale automatically; the gap between your dominant stat and neglected ones stays legible at any scale.</p>
+</div>
+
+
+<!-- ─── SECTION 2: CAP MECHANIC ───────────────────────────────────────────── -->
+<h2>Dynamic Cap — How It Works</h2>
+<div class="card">
+  <div style="font-size: 12px; color: #6B7280; line-height: 1.8;">
+    <div class="cap-row">
+      <span>Any stat reaches <b style="color:#9CA3AF">90</b></span>
+      <span class="cap-arrow">→</span>
+      <span class="cap-val">Cap: 100 → 200</span>
+    </div>
+    <div class="cap-row">
+      <span>Any stat reaches <b style="color:#9CA3AF">180</b></span>
+      <span class="cap-arrow">→</span>
+      <span class="cap-val">Cap: 200 → 300</span>
+    </div>
+    <div class="cap-row">
+      <span>Any stat reaches <b style="color:#9CA3AF">270</b></span>
+      <span class="cap-arrow">→</span>
+      <span class="cap-val">Cap: 300 → 400</span>
+    </div>
+    <div style="color: #4B5563; font-size: 11px; margin-top: 8px; line-height: 1.5;">
+      Cap = 100 × ceil(maxStat / 90). Bars always normalize to cap. Your dominant stat pulls the ceiling up for everyone — gaps between stats stay legible at any scale.
+    </div>
+  </div>
+</div>
+
+
+<!-- ─── SECTION 3: CLAIMABLE BONUS FORMULA ────────────────────────────────── -->
+<h2>Claimable Bonus Formula</h2>
+<div class="card">
+  <div style="font-size: 12px; color: #6B7280; line-height: 1.8; margin-bottom: 12px;">
+    A separate counter tracks cumulative SP earned per stat from workouts/puzzles. Each time the counter crosses the next threshold, one claimable bonus becomes available.
+  </div>
+  <div style="font-family: monospace; font-size: 13px; background: #0D0D18; border-radius: 10px; padding: 12px 14px; color: #C084FC; margin-bottom: 12px;">
+    threshold(n) = 60 × n
+  </div>
+  <div style="font-size: 12px; color: #6B7280; line-height: 1.8;">
+    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Bonus #1 available after</span><span style="color:#9CA3AF; font-weight:700;">60 SP generated</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Bonus #2 available after</span><span style="color:#9CA3AF; font-weight:700;">120 SP generated</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Bonus #3 available after</span><span style="color:#9CA3AF; font-weight:700;">180 SP generated</span></div>
+    <div style="display:flex; justify-content:space-between;"><span>Bonus #N available after</span><span style="color:#9CA3AF; font-weight:700;">60 × N SP generated</span></div>
+  </div>
+  <div class="divider"></div>
+  <div style="font-size: 11px; color: #4B5563; line-height: 1.5;">
+    Independent of stat level. Tracked in a new <code style="color:#6B7280">stat_bonus_trackers</code> table: (user, hero, stat) → total_sp_generated, claims_made. Unclaimed bonuses stack — a 180-min run generates 3 claimable endurance bonuses at once.
+  </div>
+</div>
+
+
+<!-- ─── SECTION 4: PUZZLE INTELLIGENCE SP ────────────────────────────────── -->
+<h2>Intelligence SP — Accuracy-Based</h2>
+<p class="section-note" style="margin-top: -4px;">Each puzzle gives significantly more SP than before, scaled to accuracy. Perfect play is rewarded 5× more than a miss.</p>
+
+<div class="puzzle-section">
+
+  <!-- Wordle -->
+  <div class="puzzle-col">
+    <div class="puzzle-title">🧠 Wordle</div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">1/6</span>
+      <span class="accuracy-sp intel">30 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:100%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">2/6</span>
+      <span class="accuracy-sp intel">24 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:80%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">3/6</span>
+      <span class="accuracy-sp intel">18 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:60%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">4/6</span>
+      <span class="accuracy-sp intel">12 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:40%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">5/6</span>
+      <span class="accuracy-sp intel">7 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:23%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">6/6</span>
+      <span class="accuracy-sp intel">4 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:13%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label" style="color:#F87171">Missed</span>
+      <span class="accuracy-sp" style="color:#F87171">2 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:7%; background: #F87171;"></div></div>
+  </div>
+
+  <!-- Connections -->
+  <div class="puzzle-col">
+    <div class="puzzle-title">🧠 Connections</div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label" style="color:#4ADE80">Perfect</span>
+      <span class="accuracy-sp intel">30 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:100%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">1 mistake</span>
+      <span class="accuracy-sp intel">21 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:70%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">2 mistakes</span>
+      <span class="accuracy-sp intel">12 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:40%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">3 mistakes</span>
+      <span class="accuracy-sp intel">6 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:20%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label">4 mistakes</span>
+      <span class="accuracy-sp intel">3 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:10%"></div></div>
+
+    <div class="accuracy-row">
+      <span class="accuracy-label" style="color:#F87171">Failed</span>
+      <span class="accuracy-sp" style="color:#F87171">2 SP</span>
+    </div>
+    <div class="sp-bar"><div class="sp-bar-fill" style="width:7%; background: #F87171;"></div></div>
+
+    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #1E1E35;">
+      <div class="puzzle-title" style="margin-bottom: 8px;">Mini / Strands</div>
+      <div class="accuracy-row">
+        <span class="accuracy-label">Completed</span>
+        <span class="accuracy-sp intel">20 SP</span>
+      </div>
+      <div class="sp-bar"><div class="sp-bar-fill" style="width:40%"></div></div>
+      <div style="font-size: 10px; color: #4B5563; margin-top: 6px; line-height: 1.4;">No accuracy data available — flat reward for completion.</div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ─── SECTION 5: SP SOURCE SUMMARY ─────────────────────────────────────── -->
+<h2>All SP Sources</h2>
+<div class="card">
+  <div style="font-size: 12px; color: #6B7280; line-height: 2;">
+    <div style="display:flex; justify-content:space-between; padding-bottom: 8px; border-bottom: 1px solid #1E1E35; margin-bottom: 8px;">
+      <span style="color: #4B5563; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Source</span>
+      <span style="color: #4B5563; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Rate</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>🏋️ Strength workout</span><span style="color:#F87171; font-weight:700;">1 SP / min</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>🏃 Endurance workout</span><span style="color:#60A5FA; font-weight:700;">1 SP / min</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>🧘 Dexterity workout</span><span style="color:#4ADE80; font-weight:700;">1 SP / min</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>🧠 Puzzle (accuracy-based)</span><span style="color:#C084FC; font-weight:700;">2–30 SP</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>🍀 Lucky day win</span><span style="color:#FBBF24; font-weight:700;">1 SP</span></div>
+    <div style="border-top: 1px solid #1E1E35; margin: 8px 0;"></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>⬆️ Hero level-up (all stats)</span><span style="color:#9CA3AF; font-weight:700;">+1 SP each</span></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom: 6px;"><span>⬆️ Hero level-up (primary)</span><span style="color:#9CA3AF; font-weight:700;">+2 SP extra</span></div>
+    <div style="display:flex; justify-content:space-between;"><span>🎯 Claimable bonus (per stat)</span><span style="color:#9CA3AF; font-weight:700;">+1 SP / 60 SP earned</span></div>
+  </div>
+</div>
+
+<!-- ─── SECTION 6: HOME SCREEN NOTIFICATION ───────────────────────────────── -->
+<h2>Home Screen — Claim Notification</h2>
+<p class="section-note" style="margin-top: -4px;">Appears above the hero card when unclaimed stat bonuses are available. Tapping navigates to the Hero tab (stats card). Disappears once all bonuses are claimed.</p>
+
+<div class="state-tabs" style="margin-bottom: 16px;">
+  <button class="state-tab active" onclick="showNotif('banner')">Banner (above card)</button>
+  <button class="state-tab" onclick="showNotif('overlay')">Overlay (on card)</button>
+</div>
+
+<!-- Variant A: Banner above card -->
+<div class="notif-panel active" id="notif-banner">
+
+  <!-- The notification banner -->
+  <div style="
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 0 0 6px 0;
+    background: #12121E;
+    border: 1px solid rgba(192,132,252,0.35);
+    border-radius: 14px;
+    padding: 12px 14px;
+    cursor: pointer;
+    gap: 10px;
+  ">
+    <div style="display:flex; align-items:center; gap: 10px; flex:1;">
+      <div style="
+        width: 34px; height: 34px; border-radius: 10px;
+        background: rgba(192,132,252,0.15);
+        border: 1px solid rgba(192,132,252,0.3);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 17px; flex-shrink: 0;
+      ">⬆</div>
+      <div>
+        <div style="color:#fff; font-size:14px; font-weight:700; margin-bottom:2px;">Stat bonuses ready</div>
+        <div style="color:#9CA3AF; font-size:12px;">3 unclaimed · Endurance, Intelligence</div>
+      </div>
+    </div>
+    <div style="color:#C084FC; font-size:18px; font-weight:300; flex-shrink:0;">›</div>
+  </div>
+
+  <!-- Hero card (simplified) -->
+  <div style="
+    border: 2px solid #3B2A6E;
+    border-radius: 16px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1A0F3C, #0D0D18);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+  ">
+    <div style="position:absolute; top:14px; right:14px; background:#451a03; border:1px solid #b45309; border-radius:100px; padding: 4px 10px; display:flex; align-items:center; gap:4px;">
+      <span style="font-size:13px;">🔥</span>
+      <span style="color:#fbbf24; font-size:13px; font-weight:700;">14</span>
+    </div>
+    <div style="width:64px; height:64px; border-radius:14px; border:1px solid #3B2A6E; background:#1A1A2E; display:flex; align-items:center; justify-content:center; font-size:30px; flex-shrink:0;">⚔️</div>
+    <div>
+      <div style="color:#fff; font-size:18px; font-weight:800; letter-spacing:-0.3px;">Hercules</div>
+      <div style="color:#9CA3AF; font-size:12px; margin-top:2px;">Champion · Lv. 24</div>
+      <div style="margin-top:8px; height:5px; background:#252540; border-radius:100px; width:140px; overflow:hidden;">
+        <div style="width:62%; height:100%; background:#8B5CF6; border-radius:100px;"></div>
+      </div>
+      <div style="color:#6B7280; font-size:11px; margin-top:3px;">3,840 / 6,220 XP</div>
+    </div>
+  </div>
+  <p class="annotation" style="margin-top: 8px;">Banner sits above the hero card, same horizontal margins. Uses the stat color (purple = intelligence dominant) to tie back to which stats need attention. Tapping the whole banner navigates to the Hero screen.</p>
+</div>
+
+<!-- Variant B: Overlay on card -->
+<div class="notif-panel" id="notif-overlay">
+
+  <!-- Hero card with notification strip -->
+  <div style="position:relative;">
+    <div style="
+      border: 2px solid #3B2A6E;
+      border-radius: 16px;
+      overflow: hidden;
+    ">
+      <!-- Notification strip at top of card -->
+      <div style="
+        background: rgba(192,132,252,0.12);
+        border-bottom: 1px solid rgba(192,132,252,0.25);
+        padding: 8px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+      ">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:13px;">⬆</span>
+          <span style="color:#C084FC; font-size:12px; font-weight:700;">3 stat bonuses ready to claim</span>
+        </div>
+        <span style="color:#C084FC; font-size:14px; opacity:0.7;">›</span>
+      </div>
+
+      <!-- Hero card body -->
+      <div style="
+        background: linear-gradient(135deg, #1A0F3C, #0D0D18);
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        position: relative;
+      ">
+        <div style="position:absolute; top:14px; right:14px; background:#451a03; border:1px solid #b45309; border-radius:100px; padding: 4px 10px; display:flex; align-items:center; gap:4px;">
+          <span style="font-size:13px;">🔥</span>
+          <span style="color:#fbbf24; font-size:13px; font-weight:700;">14</span>
+        </div>
+        <div style="width:64px; height:64px; border-radius:14px; border:1px solid #3B2A6E; background:#1A1A2E; display:flex; align-items:center; justify-content:center; font-size:30px; flex-shrink:0;">⚔️</div>
+        <div>
+          <div style="color:#fff; font-size:18px; font-weight:800; letter-spacing:-0.3px;">Hercules</div>
+          <div style="color:#9CA3AF; font-size:12px; margin-top:2px;">Champion · Lv. 24</div>
+          <div style="margin-top:8px; height:5px; background:#252540; border-radius:100px; width:140px; overflow:hidden;">
+            <div style="width:62%; height:100%; background:#8B5CF6; border-radius:100px;"></div>
+          </div>
+          <div style="color:#6B7280; font-size:11px; margin-top:3px;">3,840 / 6,220 XP</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="annotation" style="margin-top: 8px;">Notification strip is part of the hero card itself — sits inside the border at the top. More compact, less visual noise. The strip is tappable and navigates to the Hero screen stats section.</p>
+</div>
+
+
+<script>
+  function showState(id) {
+    document.querySelectorAll('.state-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.state-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('state-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+  function showNotif(id) {
+    document.querySelectorAll('.notif-panel').forEach(p => p.classList.remove('active'));
+    event.target.parentElement.querySelectorAll('.state-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('notif-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+
+<style>
+  .notif-panel { display: none; }
+  .notif-panel.active { display: block; }
+</style>
+
+</body>
+</html>

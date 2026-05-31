@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Level Up Modal — Arete</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #09090F;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  /* Overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+
+  /* Card */
+  .card {
+    background: #0F0F1C;
+    border: 1.5px solid #D97706;
+    border-radius: 24px;
+    padding: 32px 28px 28px;
+    width: 100%;
+    max-width: 360px;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  /* Glow behind card */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: -60px; left: 50%;
+    transform: translateX(-50%);
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251,191,36,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* LEVEL UP label */
+  .level-up-label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #D97706;
+    margin-bottom: 10px;
+  }
+
+  /* Hero name */
+  .hero-name {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  /* Level badge */
+  .level-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin: 18px 0 22px;
+  }
+  .level-old {
+    font-size: 28px;
+    font-weight: 800;
+    color: #4B5563;
+  }
+  .level-arrow {
+    font-size: 18px;
+    color: #D97706;
+  }
+  .level-new {
+    font-size: 52px;
+    font-weight: 900;
+    color: #FCD34D;
+    line-height: 1;
+    text-shadow: 0 0 24px rgba(251,191,36,0.5);
+  }
+  .level-new-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #9CA3AF;
+    margin-top: 4px;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: #1E1E35;
+    margin: 20px 0;
+  }
+
+  /* Section label */
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #6B7280;
+    margin-bottom: 12px;
+    text-align: left;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .stat-tile {
+    background: #12121E;
+    border: 1px solid #1E1E35;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+  }
+  .stat-icon { font-size: 16px; }
+  .stat-info { flex: 1; }
+  .stat-name {
+    font-size: 11px;
+    color: #9CA3AF;
+    font-weight: 500;
+  }
+  .stat-gain {
+    font-size: 15px;
+    font-weight: 800;
+    margin-top: 1px;
+  }
+  .stat-gain.strength  { color: #F87171; }
+  .stat-gain.endurance { color: #60A5FA; }
+  .stat-gain.dexterity { color: #4ADE80; }
+  .stat-gain.intelligence { color: #C084FC; }
+  .stat-gain.luck      { color: #FBBF24; }
+
+  /* Skill unlock */
+  .skill-card {
+    background: #12121E;
+    border: 1px solid #D97706;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    text-align: left;
+  }
+  .skill-icon-box {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: #78350F;
+    border: 1px solid #D97706;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .skill-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #FCD34D;
+    background: #78350F;
+    border-radius: 100px;
+    padding: 2px 7px;
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+  .skill-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 3px;
+  }
+  .skill-desc {
+    font-size: 12px;
+    color: #9CA3AF;
+    line-height: 1.5;
+  }
+
+  /* No skill state (levels without a skill unlock) */
+  .no-skill {
+    display: none;
+  }
+
+  /* Button */
+  .btn {
+    margin-top: 24px;
+    width: 100%;
+    background: #92400E;
+    border: 1.5px solid #D97706;
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #FCD34D;
+    cursor: pointer;
+  }
+  .btn:hover { background: #78350F; }
+
+  /* Preview switcher */
+  .switcher {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .switch-btn {
+    background: #12121E;
+    border: 1px solid #1E1E35;
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: #9CA3AF;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .switch-btn.active {
+    border-color: #D97706;
+    color: #FCD34D;
+    background: #1C1208;
+  }
+</style>
+</head>
+<body>
+
+<div style="width:100%; max-width:420px">
+  <div class="switcher">
+    <button class="switch-btn active" onclick="show('with-skill')">Level 5 (skill unlock)</button>
+    <button class="switch-btn" onclick="show('no-skill')">Level 3 (no skill)</button>
+  </div>
+
+  <!-- Variant A: Level with skill unlock -->
+  <div id="with-skill" class="overlay" style="position:relative; border-radius:24px; padding:0; background:rgba(0,0,0,0.0)">
+    <div class="card">
+      <div class="level-up-label">⚔ Level Up!</div>
+      <div class="hero-name">Hercules</div>
+
+      <div class="level-row">
+        <div>
+          <div class="level-old">4</div>
+        </div>
+        <div class="level-arrow">→</div>
+        <div>
+          <div class="level-new">5</div>
+          <div class="level-new-label">Level</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Stats gained</div>
+      <div class="stats-grid">
+        <div class="stat-tile">
+          <div class="stat-icon">⚔️</div>
+          <div class="stat-info">
+            <div class="stat-name">Strength</div>
+            <div class="stat-gain strength">+3 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">🏃</div>
+          <div class="stat-info">
+            <div class="stat-name">Endurance</div>
+            <div class="stat-gain endurance">+2 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-info">
+            <div class="stat-name">Dexterity</div>
+            <div class="stat-gain dexterity">+1 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">🧠</div>
+          <div class="stat-info">
+            <div class="stat-name">Intelligence</div>
+            <div class="stat-gain intelligence">+1 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile" style="grid-column: span 2">
+          <div class="stat-icon">🍀</div>
+          <div class="stat-info">
+            <div class="stat-name">Luck</div>
+            <div class="stat-gain luck">+1 SP</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Skill unlocked</div>
+      <div class="skill-card">
+        <div class="skill-icon-box">🦁</div>
+        <div>
+          <div class="skill-badge">New</div>
+          <div class="skill-name">Lion Skin</div>
+          <div class="skill-desc">+10% XP from all strength workouts</div>
+        </div>
+      </div>
+
+      <button class="btn">Continue</button>
+    </div>
+  </div>
+
+  <!-- Variant B: Level without skill unlock -->
+  <div id="no-skill" class="overlay" style="position:relative; border-radius:24px; padding:0; background:rgba(0,0,0,0.0); display:none">
+    <div class="card">
+      <div class="level-up-label">⚔ Level Up!</div>
+      <div class="hero-name">Hercules</div>
+
+      <div class="level-row">
+        <div>
+          <div class="level-old">2</div>
+        </div>
+        <div class="level-arrow">→</div>
+        <div>
+          <div class="level-new">3</div>
+          <div class="level-new-label">Level</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Stats gained</div>
+      <div class="stats-grid">
+        <div class="stat-tile">
+          <div class="stat-icon">⚔️</div>
+          <div class="stat-info">
+            <div class="stat-name">Strength</div>
+            <div class="stat-gain strength">+3 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">🏃</div>
+          <div class="stat-info">
+            <div class="stat-name">Endurance</div>
+            <div class="stat-gain endurance">+2 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-info">
+            <div class="stat-name">Dexterity</div>
+            <div class="stat-gain dexterity">+1 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-icon">🧠</div>
+          <div class="stat-info">
+            <div class="stat-name">Intelligence</div>
+            <div class="stat-gain intelligence">+1 SP</div>
+          </div>
+        </div>
+        <div class="stat-tile" style="grid-column: span 2">
+          <div class="stat-icon">🍀</div>
+          <div class="stat-info">
+            <div class="stat-name">Luck</div>
+            <div class="stat-gain luck">+1 SP</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:6px; background:#12121E; border:1px solid #1E1E35; border-radius:12px; padding:12px 14px; text-align:left">
+        <div style="font-size:11px; color:#6B7280; font-weight:600">Next skill at <span style="color:#FCD34D">Level 5</span> — Lion Skin</div>
+      </div>
+
+      <button class="btn">Continue</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function show(id) {
+    document.getElementById('with-skill').style.display = id === 'with-skill' ? '' : 'none';
+    document.getElementById('no-skill').style.display = id === 'no-skill' ? '' : 'none';
+    document.querySelectorAll('.switch-btn').forEach((b, i) => {
+      b.classList.toggle('active', (i === 0 && id === 'with-skill') || (i === 1 && id === 'no-skill'));
+    });
+  }
+</script>
+</body>
+</html>

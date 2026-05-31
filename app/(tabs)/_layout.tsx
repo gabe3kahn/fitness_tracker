@@ -39,11 +39,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="quests"
+        name="workouts"
         options={{
-          title: 'Quests',
+          title: 'Workouts',
           tabBarIcon: ({ color, size }) => (
-            <IconSymbol name="scroll.fill" size={size} color={color} />
+            <IconSymbol name="figure.run" size={size} color={color} />
           ),
         }}
       />
@@ -56,6 +56,8 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* Quests kept as a hidden route — not shown in tab bar */}
+      <Tabs.Screen name="quests" options={{ href: null }} />
     </Tabs>
   );
 }
