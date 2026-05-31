@@ -612,7 +612,7 @@ export default function DashboardScreen() {
             <TouchableOpacity
               style={{ backgroundColor: colors.border }}
               className="rounded-xl py-4 items-center mb-3"
-              onPress={() => { setHealthPromptVisible(false); connectHealth(); }}
+              onPress={() => { setHealthPromptVisible(false); setTimeout(connectHealth, 500); }}
               activeOpacity={0.8}
             >
               <Text className="text-white font-bold tracking-widest uppercase">Connect →</Text>
