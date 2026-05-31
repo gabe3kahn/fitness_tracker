@@ -83,8 +83,11 @@ export function useHealthSync(activeHeroId?: string) {
       setSleepEnabled(true);
     }
 
+    // Re-request permissions on every init — silently resolves if already authorized,
+    // shows the sheet if auth was reset (e.g. app reinstall clears device-side HealthKit state).
+    await requestHealthKitPermissions(connection.sleep_enabled ?? false);
+
     // Fetch display stats once — passed into runSync to avoid a second HealthKit read.
-    // No permission request here; queryTodayStats returns zeros if not yet authorized.
     const stats = await queryTodayStats().catch(() => cachedTodayStats);
     cachedTodayStats = stats;
     setTodayStats(stats);
