@@ -423,7 +423,7 @@ export default function DashboardScreen() {
             </View>
 
             {/* Info */}
-            <View className="flex-1" style={{ paddingRight: 56 }}>
+            <View className="flex-1" style={{ paddingRight: 80 }}>
               <Text className="text-white text-xl font-bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{heroDef.name}</Text>
               <Text style={{ color: colors.accent, opacity: 0.8 }} className="text-sm font-semibold mt-0.5 mb-2.5">
                 {heroDef.heroClass.charAt(0).toUpperCase() + heroDef.heroClass.slice(1)}  ·  {TIER_LABELS[activeHero.tier as keyof typeof TIER_LABELS] ?? activeHero.tier}

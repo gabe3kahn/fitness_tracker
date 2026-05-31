@@ -12,6 +12,7 @@ import { HEROES } from '../constants/heroes';
 import { ACTIVITY_TO_STAT, PlayerStat } from '../constants/stats';
 import {
   isHealthKitAvailable,
+  isHealthKitAuthorized,
   requestHealthKitPermissions,
   queryWorkoutsSince,
   queryTodayStats,
@@ -83,9 +84,13 @@ export function useHealthSync(activeHeroId?: string) {
       setSleepEnabled(true);
     }
 
-    // Re-request permissions on every init — silently resolves if already authorized,
-    // shows the sheet if auth was reset (e.g. app reinstall clears device-side HealthKit state).
-    await requestHealthKitPermissions(connection.sleep_enabled ?? false);
+    // If HealthKit auth was reset (e.g. app reinstall), show the Connect button so the
+    // user triggers the permission sheet intentionally rather than auto-firing it on init.
+    const authorized = await isHealthKitAuthorized(connection.sleep_enabled ?? false);
+    if (!authorized) {
+      setNeedsHealthSetup(true);
+      return;
+    }
 
     // Fetch display stats once — passed into runSync to avoid a second HealthKit read.
     const stats = await queryTodayStats().catch(() => cachedTodayStats);
