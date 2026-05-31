@@ -62,6 +62,19 @@ async function getHK() {
   return _hk;
 }
 
+export async function isHealthKitAuthorized(includeSleep = false): Promise<boolean> {
+  if (!isHealthKitAvailable()) return false;
+  try {
+    const hk = await getHK();
+    const identifiers = includeSleep ? SLEEP_READ_IDENTIFIERS : BASE_READ_IDENTIFIERS;
+    const status = await (hk as any).getRequestStatusForAuthorization([], identifiers);
+    return status === 'unnecessary';
+  } catch (e) {
+    console.warn('[HealthKit] authorizationStatus check failed:', e);
+    return false;
+  }
+}
+
 export async function requestHealthKitPermissions(includeSleep = false): Promise<boolean> {
   if (!isHealthKitAvailable()) return false;
   try {
