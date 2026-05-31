@@ -46,7 +46,7 @@ export default function LoginScreen() {
           <View className="px-6 py-12">
             {/* Header */}
             <Text className="text-amber-400 text-5xl font-bold text-center tracking-widest">
-              HEROFIT
+              ARETE
             </Text>
             <Text className="text-gray-400 text-center mt-2 mb-12">
               Train like a legend. Become one.
@@ -58,7 +58,7 @@ export default function LoginScreen() {
             </Text>
             <TextInput
               className="bg-[#12121E] text-white border border-[#1E1E35] rounded-lg text-base"
-              style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, minHeight: 52 }}
+              style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20, minHeight: 52 }}
               placeholder="hero@example.com"
               placeholderTextColor="#4B5563"
               value={email}
