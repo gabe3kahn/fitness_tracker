@@ -26,7 +26,7 @@ const CARD_HEIGHT = 300;
 // Per-hero vertical offset (px) to position the face within the 144px art crop window.
 // Negative = shift image up, revealing content further down. 0 = show from top.
 const HERO_IMAGE_OFFSET_Y: Partial<Record<string, number>> = {
-  yoshitsune: -30,
+  yoshitsune: -50,
 };
 
 const STAT_LABELS: Record<StatKey, string> = {
