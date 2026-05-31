@@ -248,7 +248,7 @@ export default function DashboardScreen() {
   const [lastResult, setLastResult] = useState<{ xpEarned: number; leveledUp: boolean } | null>(null);
   const [healthPromptVisible, setHealthPromptVisible] = useState(false);
   const [sleepOptInVisible, setSleepOptInVisible] = useState(false);
-  const { todayStats, sleepSummary, isSyncing, needsHealthSetup, sleepEnabled, connectHealth, forceSync, enableSleepTracking } = useHealthSync(activeHero?.hero_id);
+  const { todayStats, sleepSummary, isSyncing, isConnecting, needsHealthSetup, sleepEnabled, connectHealth, forceSync, enableSleepTracking } = useHealthSync(activeHero?.hero_id);
   const { luckyToday, dismissLuck } = useLuckCheck();
   const { claimableBonuses } = usePlayerStats(activeHero?.hero_id);
   const totalClaimable = PLAYER_STATS.reduce((s, stat) => s + (claimableBonuses[stat] ?? 0), 0);
@@ -423,8 +423,8 @@ export default function DashboardScreen() {
             </View>
 
             {/* Info */}
-            <View className="flex-1">
-              <Text className="text-white text-xl font-bold">{heroDef.name}</Text>
+            <View className="flex-1" style={{ paddingRight: 56 }}>
+              <Text className="text-white text-xl font-bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{heroDef.name}</Text>
               <Text style={{ color: colors.accent, opacity: 0.8 }} className="text-sm font-semibold mt-0.5 mb-2.5">
                 {heroDef.heroClass.charAt(0).toUpperCase() + heroDef.heroClass.slice(1)}  ·  {TIER_LABELS[activeHero.tier as keyof typeof TIER_LABELS] ?? activeHero.tier}
               </Text>
@@ -446,15 +446,21 @@ export default function DashboardScreen() {
           {needsHealthSetup ? (
             <TouchableOpacity
               onPress={connectHealth}
+              disabled={isConnecting}
               style={{ borderColor: colors.border }}
               className="bg-[#12121E] border rounded-2xl p-4 flex-row items-center justify-between"
               activeOpacity={0.7}
             >
               <View className="flex-1 mr-3">
                 <Text className="text-white font-bold mb-0.5">Connect Apple Health</Text>
-                <Text className="text-gray-400 text-xs">Sync workouts and earn XP automatically</Text>
+                <Text className="text-gray-400 text-xs">
+                  {isConnecting ? 'Connecting…' : 'Sync workouts and earn XP automatically'}
+                </Text>
               </View>
-              <Text style={{ color: colors.accent }} className="font-bold text-sm">Connect →</Text>
+              {isConnecting
+                ? <ActivityIndicator size="small" color={colors.accent} />
+                : <Text style={{ color: colors.accent }} className="font-bold text-sm">Connect →</Text>
+              }
             </TouchableOpacity>
           ) : (
             <View className="flex-row" style={{ gap: 10 }}>

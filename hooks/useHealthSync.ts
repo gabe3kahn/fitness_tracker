@@ -47,6 +47,7 @@ export function useHealthSync(activeHeroId?: string) {
   const [todayStats, setTodayStats] = useState<TodayStats>(cachedTodayStats);
   const [sleepSummary, setSleepSummary] = useState<SleepSummary | null>(cachedSleepSummary);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [needsHealthSetup, setNeedsHealthSetup] = useState(false);
   const [sleepEnabled, setSleepEnabled] = useState(false);
   const activeHeroIdRef = useRef(activeHeroId);
@@ -97,10 +98,19 @@ export function useHealthSync(activeHeroId?: string) {
 
   async function connectHealth() {
     if (!user) return;
-    await requestHealthKitPermissions(false);
-    lastSyncTimestamp = Date.now();
-    setNeedsHealthSetup(false);
-    await runSync();
+    setIsConnecting(true);
+    try {
+      const granted = await requestHealthKitPermissions(false);
+      if (!granted) {
+        console.warn('[HealthSync] connectHealth: requestHealthKitPermissions returned false');
+        return;
+      }
+      lastSyncTimestamp = Date.now();
+      setNeedsHealthSetup(false);
+      await runSync();
+    } finally {
+      setIsConnecting(false);
+    }
   }
 
   async function forceSync() {
@@ -367,5 +377,5 @@ export function useHealthSync(activeHeroId?: string) {
     }
   }
 
-  return { todayStats, sleepSummary, isSyncing, needsHealthSetup, sleepEnabled, connectHealth, forceSync, enableSleepTracking, disableSleepTracking };
+  return { todayStats, sleepSummary, isSyncing, isConnecting, needsHealthSetup, sleepEnabled, connectHealth, forceSync, enableSleepTracking, disableSleepTracking };
 }

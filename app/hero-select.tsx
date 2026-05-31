@@ -23,6 +23,12 @@ const CARD_MARGIN = 12;
 const CARD_WIDTH = SCREEN_WIDTH - CARD_MARGIN * 4;
 const CARD_HEIGHT = 300;
 
+// Per-hero vertical offset (px) to position the face within the 144px art crop window.
+// Negative = shift image up, revealing content further down. 0 = show from top.
+const HERO_IMAGE_OFFSET_Y: Partial<Record<string, number>> = {
+  yoshitsune: -30,
+};
+
 const STAT_LABELS: Record<StatKey, string> = {
   strengthWorkouts: 'Strength Workouts',
   runningDistance:  'Running Distance',
@@ -45,7 +51,7 @@ function HeroCard({ hero, colors }: { hero: HeroDef; colors: typeof CLASS_COLORS
         {getHeroImage(hero.id, 'novice') ? (
           <Image
             source={getHeroImage(hero.id, 'novice')!}
-            style={{ width: '100%', height: 550 }}
+            style={{ width: '100%', height: 550, marginTop: HERO_IMAGE_OFFSET_Y[hero.id] ?? 0 }}
             resizeMode="cover"
           />
         ) : (
@@ -65,7 +71,7 @@ function HeroCard({ hero, colors }: { hero: HeroDef; colors: typeof CLASS_COLORS
 
       {/* Info */}
       <View className="px-4 pt-3 pb-4">
-        <Text className="text-white text-xl font-bold">{hero.name}</Text>
+        <Text className="text-white text-xl font-bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{hero.name}</Text>
         <Text className="text-gray-400 text-xs mb-3">{hero.origin}</Text>
         <View className="flex-row gap-2">
           <View className="flex-1 bg-[#1A1A2E] rounded-lg px-2 py-1.5">
@@ -93,6 +99,7 @@ export default function HeroSelectScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const flatListRef = useRef<FlatList>(null);
+  const currentIndexRef = useRef(0);
 
   const currentHero = HEROES[currentIndex];
   const colors = CLASS_COLORS[currentHero.heroClass];
@@ -101,18 +108,22 @@ export default function HeroSelectScreen() {
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const offsetX = e.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / (CARD_WIDTH + CARD_MARGIN * 4));
-    if (index >= 0 && index < HEROES.length) setCurrentIndex(index);
+    if (index >= 0 && index < HEROES.length && index !== currentIndexRef.current) {
+      currentIndexRef.current = index;
+      setCurrentIndex(index);
+    }
   }
 
   async function handleSelectHero() {
     if (!user) return;
     setError('');
     setLoading(true);
+    const hero = HEROES[currentIndexRef.current];
 
     const { error: dbError } = await supabase
       .from('user_heroes')
       .upsert(
-        { user_id: user.id, hero_id: currentHero.id, is_active: true },
+        { user_id: user.id, hero_id: hero.id, is_active: true },
         { onConflict: 'user_id,hero_id' }
       );
 
@@ -126,7 +137,7 @@ export default function HeroSelectScreen() {
       .from('user_heroes')
       .update({ is_active: false })
       .eq('user_id', user.id)
-      .neq('hero_id', currentHero.id);
+      .neq('hero_id', hero.id);
 
     router.replace('/(tabs)');
   }
@@ -161,6 +172,8 @@ export default function HeroSelectScreen() {
         showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0 }}
         contentContainerStyle={{ paddingVertical: 8 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         onMomentumScrollEnd={handleScroll}
         renderItem={({ item }) => (
           <HeroCard hero={item} colors={CLASS_COLORS[item.heroClass as HeroClass]} />
@@ -212,7 +225,7 @@ export default function HeroSelectScreen() {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text className="text-white font-bold text-base tracking-widest uppercase">
-              Begin as {currentHero.name}  →
+              Begin as {currentHero.name} →
             </Text>
           )}
         </TouchableOpacity>
