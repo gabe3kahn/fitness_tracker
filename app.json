@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Arete",
-    "slug": "arete",
+    "slug": "fitness_tracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -36,10 +36,13 @@
     },
     "plugins": [
       "expo-router",
-      ["@kingstinct/react-native-healthkit", {
-        "NSHealthShareUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness.",
-        "NSHealthUpdateUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness."
-      }],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness.",
+          "NSHealthUpdateUsageDescription": "Arete reads your workouts and activity data to award XP for your fitness."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -62,6 +65,7 @@
       "eas": {
         "projectId": "b3478ac5-b55b-4f7c-8646-f75aa00ac320"
       }
-    }
+    },
+    "owner": "gabe3kahn"
   }
 }
