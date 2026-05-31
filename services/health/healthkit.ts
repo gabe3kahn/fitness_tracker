@@ -67,8 +67,9 @@ export async function isHealthKitAuthorized(includeSleep = false): Promise<boole
   try {
     const hk = await getHK();
     const identifiers = includeSleep ? SLEEP_READ_IDENTIFIERS : BASE_READ_IDENTIFIERS;
-    const status = await (hk as any).getRequestStatusForAuthorization([], identifiers);
-    return status === 'unnecessary';
+    const status = await (hk as any).getRequestStatusForAuthorization({ toShare: [], toRead: identifiers });
+    // AuthorizationRequestStatus enum: 0=unknown, 1=shouldRequest, 2=unnecessary
+    return status === 2;
   } catch (e) {
     console.warn('[HealthKit] authorizationStatus check failed:', e);
     return false;
