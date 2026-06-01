@@ -13,6 +13,7 @@ import { CLASS_COLORS, CLASS_SYMBOLS } from '../../constants/ui';
 import { isHealthKitAvailable } from '../../services/health/healthkit';
 import { useHealthSync } from '../../hooks/useHealthSync';
 import { useUnits } from '../../hooks/useUnits';
+import { isAdminUser } from '../../constants/admin';
 
 function SectionLabel({ label }: { label: string }) {
   return (
@@ -240,12 +241,12 @@ export default function ProfileScreen() {
           <SectionLabel label="Account" />
           <View style={{ backgroundColor: '#12121E', borderWidth: 1, borderColor: '#1E1E35', borderRadius: 16, overflow: 'hidden' }}>
             <SettingsRow icon="👤" label="Email" value={user?.email ?? '—'} />
-            {__DEV__ && <SettingsRow icon="⚔️" label="Switch Hero" onPress={() => router.push('/hero-select')} />}
+            {isAdminUser(user?.email) && <SettingsRow icon="⚔️" label="Switch Hero" onPress={() => router.push('/hero-select')} />}
           </View>
         </View>
 
         {/* Recalculate stats — dev only */}
-        {__DEV__ && <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+        {isAdminUser(user?.email) && <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
           <TouchableOpacity
             onPress={async () => {
               if (!user) return;

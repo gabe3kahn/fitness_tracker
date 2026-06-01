@@ -13,6 +13,7 @@ import { HeroTier, TIER_LEVELS } from '../../constants/heroes';
 import { getHeroImage } from '../../constants/hero-images';
 import { streakMultiplier, xpProgressInLevel, effectiveStreak } from '../../constants/xp-config';
 import { useUserStore } from '../../stores/user-store';
+import { isAdminUser } from '../../constants/admin';
 
 const STAT_CONFIG: Record<PlayerStat, { label: string; color: string; symbol: string; gradient: [string, string] }> = {
   strength:     { label: 'Strength',     color: '#F87171', symbol: '⚔️', gradient: ['#EF4444', '#F97316'] },
@@ -276,8 +277,8 @@ export default function HeroScreen() {
           })}
         </View>
 
-        {/* Switch hero — dev only */}
-        {__DEV__ && (
+        {/* Switch hero — admin only */}
+        {isAdminUser(user?.email) && (
           <TouchableOpacity
             onPress={() => router.push('/hero-select')}
             style={{ marginHorizontal: 20, marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#2A2A45', borderRadius: 14, paddingVertical: 14, backgroundColor: '#12121E' }}
