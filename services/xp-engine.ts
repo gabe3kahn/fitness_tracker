@@ -3,8 +3,10 @@ import {
   XP_RATES,
   KM_PER_MI,
   HERO_CLASS_BONUS,
+  STREAK_BONUS,
   streakMultiplier,
   levelForXp,
+  type StreakOptions,
 } from '../constants/xp-config';
 import { getTierForLevel, StatKey } from '../constants/heroes';
 import { awardStatSp } from './stat-engine';
@@ -16,10 +18,24 @@ export interface HealthInput {
   distanceHikeKm?: number;
   distanceCycleKm?: number;
   distanceSwimKm?: number;
-  workoutMinutes?: number;
+  // Activity-type-specific minute fields (replaces generic workoutMinutes)
+  strengthMinutes?: number;
+  hiitMinutes?: number;
+  mobilityMinutes?: number;   // yoga, pilates
+  cardioMinutes?: number;     // other non-distance cardio (elliptical, rowing, etc.)
+  workoutMinutes?: number;    // fallback for unknown activity types
   elevationFt?: number;
   puzzle?: { xp: number; rawValue: number };
 }
+
+// All minute-based sources — used for Yoshitsune's workoutDuration primary (all *Minutes)
+export const ALL_MINUTE_SOURCES = new Set([
+  'strengthMinutes',
+  'hiitMinutes',
+  'mobilityMinutes',
+  'cardioMinutes',
+  'workoutMinutes',
+]);
 
 interface XpBreakdown {
   source: string;
@@ -42,6 +58,8 @@ export interface XpResult {
 
 function baseXpFromInput(input: HealthInput): XpBreakdown[] {
   const breakdown: XpBreakdown[] = [];
+  const minuteXp = (minutes: number) =>
+    Math.min(minutes * XP_RATES.workoutXpPerMin, XP_RATES.workoutMinuteCap);
 
   if (input.steps) {
     const xp = Math.floor(input.steps / XP_RATES.stepsPerXp);
@@ -67,8 +85,24 @@ function baseXpFromInput(input: HealthInput): XpBreakdown[] {
     const xp = Math.floor(mi * XP_RATES.distanceSwimXpPerMi);
     breakdown.push({ source: 'distanceSwim', rawValue: mi, baseXp: xp, finalXp: xp });
   }
+  if (input.strengthMinutes) {
+    const xp = minuteXp(input.strengthMinutes);
+    breakdown.push({ source: 'strengthMinutes', rawValue: input.strengthMinutes, baseXp: xp, finalXp: xp });
+  }
+  if (input.hiitMinutes) {
+    const xp = minuteXp(input.hiitMinutes);
+    breakdown.push({ source: 'hiitMinutes', rawValue: input.hiitMinutes, baseXp: xp, finalXp: xp });
+  }
+  if (input.mobilityMinutes) {
+    const xp = minuteXp(input.mobilityMinutes);
+    breakdown.push({ source: 'mobilityMinutes', rawValue: input.mobilityMinutes, baseXp: xp, finalXp: xp });
+  }
+  if (input.cardioMinutes) {
+    const xp = minuteXp(input.cardioMinutes);
+    breakdown.push({ source: 'cardioMinutes', rawValue: input.cardioMinutes, baseXp: xp, finalXp: xp });
+  }
   if (input.workoutMinutes) {
-    const xp = Math.min(input.workoutMinutes * XP_RATES.workoutXpPerMin, XP_RATES.workoutMinuteCap);
+    const xp = minuteXp(input.workoutMinutes);
     breakdown.push({ source: 'workoutMinutes', rawValue: input.workoutMinutes, baseXp: xp, finalXp: xp });
   }
   if (input.elevationFt) {
@@ -82,15 +116,16 @@ function baseXpFromInput(input: HealthInput): XpBreakdown[] {
   return breakdown;
 }
 
-const STAT_TO_SOURCE: Partial<Record<StatKey, string>> = {
-  strengthWorkouts: 'workoutMinutes',
+const STAT_TO_SOURCE: Partial<Record<StatKey, string | 'ALL_MINUTES'>> = {
+  strengthWorkouts: 'strengthMinutes',
   runningDistance:  'distanceRun',
-  streaks:          'streak',
-  variedActivity:   'workoutMinutes',
-  hiitWorkouts:     'workoutMinutes',
+  hikingDistance:   'distanceHike',
   cyclingDistance:  'distanceCycle',
   steps:            'steps',
-  workoutDuration:  'workoutMinutes',
+  elevation:        'elevation',
+  hiitWorkouts:     'hiitMinutes',
+  workoutDuration:  'ALL_MINUTES',  // matches every *Minutes source
+  // variedActivity and streaks are handled outside applyClassBonus (day-level and streak-level)
 };
 
 function applyClassBonus(
@@ -103,8 +138,15 @@ function applyClassBonus(
 
   return breakdown.map((item) => {
     let multiplier = 1;
-    if (item.source === primarySource) multiplier = HERO_CLASS_BONUS.primaryMultiplier;
-    else if (item.source === secondarySource) multiplier = HERO_CLASS_BONUS.secondaryMultiplier;
+    const isPrimary = primarySource === 'ALL_MINUTES'
+      ? ALL_MINUTE_SOURCES.has(item.source)
+      : item.source === primarySource;
+    const isSecondary = !isPrimary && (secondarySource === 'ALL_MINUTES'
+      ? ALL_MINUTE_SOURCES.has(item.source)
+      : item.source === secondarySource);
+
+    if (isPrimary) multiplier = HERO_CLASS_BONUS.primaryMultiplier;
+    else if (isSecondary) multiplier = HERO_CLASS_BONUS.secondaryMultiplier;
     return { ...item, finalXp: Math.floor(item.baseXp * multiplier) };
   });
 }
@@ -115,11 +157,15 @@ export function calculateXp(
   secondaryStat: StatKey,
   streakDays: number,
   sleepMultiplier = 1,
+  streakOpts: StreakOptions = {},
 ): { totalXp: number; breakdown: XpBreakdown[] } {
   let breakdown = baseXpFromInput(input);
-  breakdown = applyClassBonus(breakdown, primaryStat, secondaryStat);
+  // variedActivity primary bonus is applied at the day level in useHealthSync, not here
+  if (primaryStat !== 'variedActivity') {
+    breakdown = applyClassBonus(breakdown, primaryStat, secondaryStat);
+  }
 
-  const streakMult = streakMultiplier(streakDays);
+  const streakMult = streakMultiplier(streakDays, streakOpts);
   const multiplier = streakMult * sleepMultiplier;
   breakdown = breakdown.map((item) => ({
     ...item,
@@ -130,13 +176,10 @@ export function calculateXp(
   return { totalXp, breakdown };
 }
 
-// Returns 'YYYY-MM-DD' in the given IANA timezone
 function getLocalDate(timezone: string): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
 }
 
-// Returns the date string for the day before the given 'YYYY-MM-DD' string.
-// Parses as noon local time to avoid DST edge cases.
 function getYesterdayDate(localDateStr: string): string {
   const d = new Date(`${localDateStr}T12:00:00`);
   d.setDate(d.getDate() - 1);
@@ -161,29 +204,29 @@ export async function awardXp(
   timezone: string,
   activityType = 'manual',
   sourcePlatform = 'manual',
-  // Pass a YYYY-MM-DD string to record an activity on a specific past date (e.g. HealthKit import).
   eventDateOverride?: string,
-  // Only workouts >= 20 min count toward the streak. Steps, short sessions, etc. pass false.
   countsForStreak = true,
-  // Stable external ID (e.g. Apple Health workout UUID) — prevents duplicate inserts on re-sync.
   externalSessionId?: string,
   sleepMultiplier = 1,
-  // Wordle guess count (1–6) or Connections mistake count (0+). Only set for puzzle events.
   puzzleAccuracy?: number,
+  streakOpts: StreakOptions = {},
 ): Promise<XpResult> {
   const eventDate = eventDateOverride ?? getLocalDate(timezone);
   const yesterday = getYesterdayDate(eventDate);
 
-  // 1. Resolve streak BEFORE computing XP so all modifiers are known upfront.
+  // 1. Resolve streak
   let newStreak = streakDays;
   let newLongestStreak = longestStreak;
   if (countsForStreak && lastActiveDate !== eventDate) {
-    newStreak = lastActiveDate === yesterday ? streakDays + 1 : 1;
+    if (lastActiveDate === yesterday) {
+      newStreak = streakDays + 1;
+    } else {
+      // Exile's Resolve (Yoshitsune Lv15): preserve half on break
+      newStreak = streakOpts.preserveHalfOnBreak ? Math.floor(streakDays / 2) : 1;
+    }
     newLongestStreak = Math.max(longestStreak, newStreak);
   }
 
-  // Streak multiplier to apply: qualifying activities use the streak they produce;
-  // non-qualifying (steps, short workouts) use the current streak only if still active.
   let streakForXp: number;
   if (countsForStreak) {
     streakForXp = newStreak;
@@ -192,9 +235,11 @@ export async function awardXp(
     streakForXp = streakIsActive ? streakDays : 0;
   }
 
-  // 2. Calculate XP with resolved streak + sleep multiplier.
-  const { totalXp: earned, breakdown } = calculateXp(input, primaryStat, secondaryStat, streakForXp, sleepMultiplier);
-  const streakMult = streakMultiplier(streakForXp);
+  // 2. Calculate XP
+  const { totalXp: earned, breakdown } = calculateXp(
+    input, primaryStat, secondaryStat, streakForXp, sleepMultiplier, streakOpts,
+  );
+  const streakMult = streakMultiplier(streakForXp, streakOpts);
   console.log(`[XP] awardXp hero=${heroId} activity=${activityType} platform=${sourcePlatform} streakForXp=${streakForXp} streakMult=${streakMult.toFixed(2)} sleepMult=${sleepMultiplier.toFixed(2)} earned=${earned}`);
   breakdown.forEach((b) => console.log(`[XP]   ${b.source} raw=${b.rawValue} base=${b.baseXp} final=${b.finalXp}`));
 
@@ -248,6 +293,62 @@ export async function awardXp(
     newStreak,
     newLongestStreak,
   };
+}
+
+// Awards a flat XP bonus with a stable session_id (idempotent via DB unique constraint on session_id).
+export async function awardSkillBonusXp(
+  userId: string,
+  heroId: string,
+  skillSessionId: string,  // e.g. 'skill_twelve_labors_2026_06'
+  xp: number,
+  eventDate: string,
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from('xp_events')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('hero_id', heroId)
+    .eq('session_id', skillSessionId)
+    .maybeSingle();
+
+  if (existing) {
+    console.log(`[Skill] bonus already awarded session=${skillSessionId} — skipping`);
+    return;
+  }
+
+  const { data: hero } = await supabase
+    .from('user_heroes')
+    .select('total_xp, level')
+    .eq('user_id', userId)
+    .eq('hero_id', heroId)
+    .single();
+
+  if (!hero) return;
+
+  const newTotalXp = hero.total_xp + xp;
+  const newLevel = levelForXp(newTotalXp);
+  const newTier = getTierForLevel(newLevel);
+
+  await supabase.from('xp_events').insert({
+    user_id: userId,
+    hero_id: heroId,
+    source: 'skill',
+    raw_value: xp,
+    xp_earned: xp,
+    bonus_multiplier: 1,
+    event_date: eventDate,
+    source_platform: 'skill',
+    activity_type: 'skill',
+    session_id: skillSessionId,
+  });
+
+  await supabase
+    .from('user_heroes')
+    .update({ total_xp: newTotalXp, level: newLevel, tier: newTier })
+    .eq('user_id', userId)
+    .eq('hero_id', heroId);
+
+  console.log(`[Skill] bonus awarded session=${skillSessionId} xp=${xp} total=${newTotalXp}`);
 }
 
 // Awards a flat XP bonus for completing a quest — no multipliers, no streak updates.
