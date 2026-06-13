@@ -38,6 +38,8 @@ const STAT_LABELS: Record<StatKey, string> = {
   cyclingDistance:  'Cycling Distance',
   steps:            'Daily Steps',
   workoutDuration:  'Workout Duration',
+  elevation:        'Elevation Gain',
+  hikingDistance:   'Hiking Distance',
 };
 
 function HeroCard({ hero, colors }: { hero: HeroDef; colors: typeof CLASS_COLORS[HeroClass] }) {
